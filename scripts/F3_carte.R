@@ -1,1 +1,2 @@
-c <- read.table("c:/Users/carol/Documents/Cours/Projet/IRVE.csv",header = TRUE);c[,1];
+c <- read.table("C:\Users\carol\Documents\Cours\Projet\IRVE.csv",header = TRUE);
+
