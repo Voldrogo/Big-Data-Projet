@@ -1,0 +1,33 @@
+Description jeux de donnée 
+
+Structure générale :
+
+-Nb lignes : 184505
+-Nb colonnes : 47 colonnes
+-unité d'observation : une borne de recharge = 1 ligne 
+	Données issues de plusieurs opérateurs (DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via data.gouv.fr
+-Variable principal
+-Identification : id_station_itinerance, id_pdc_itinerance, nom_station
+-Localisation : adresse_station, consolidated_longitude, consolidated_latitude, consolidated_commune
+-Caractéristiques techniques : puissance_nominale, types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs, 									  prise_type_chademo), nbre_pdc
+-Accès : condition_acces, gratuit, paiement_cb, horaires
+-Temporel : date_mise_en_service, date_maj
+
+
+
+Variables numériques 
+
+-Conditions d’accés: Accès libre / Accès réservé
+-Implantation Station: parking public/privé à usage public/privé réservé, voirie, station dédiée
+-horaires: majorité de 24/7
+-nbre_pdc: de 1 à 48 PDC par station ( différence autoroute et privé (1 à 2 PDC)
+consolidated_is_lon_lat_correct: TRUE pour les française et FALSE pour Belge et/espagnoles
+-prise_type_2 / prise_type_combo_ccs — Type 2 présent sur la quasi-totalité des bornes AC. Combo CCS (DC) corrélé aux --puissances ≥ 50 kW, représente environ 40-50% des lignes.
+-puissance_nominale (kW)
+Indicateur	Valeur
+Min	3.4 kW
+Valeurs courantes	7, 11, 22, 50 kW
+Valeurs Standard 	22 kW
+Valeurs élevées	150, 200, 300, 360, 400 kW
+Max observé	400 kW
+
