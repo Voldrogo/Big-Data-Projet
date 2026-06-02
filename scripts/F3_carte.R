@@ -10,16 +10,13 @@ dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE) #Lit l
 
 mf_map(x = dep) # affiche la carte de la france
 
+num_dep <- substr(c$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
 
-st_crs(dep) #permet de connaitre la norme des coordonnées de la carte (ici ; EPSG:2154 — Lambert‑93)
 
-separate(c["coordonneesXY"], into = c("X", "Y"), sep = ", ", convert = TRUE)
+charge_et_dep <- table(num_dep); charge;
 
-for (coord in c["coordonneesXY"]) {
-  print(coord[,1])
-  #point_sf <- st_as_sf(c, coords = c(coord), crs = 2154)  # convertit les coord en points sf
-  #points_dep <- st_join(point_sf, dep) # jointure spacial -> ajoute une colonne avec le département correspondant 
-}
+for (num_dep in dep$INSEE_DEP)
+charge_et_dep[]
 
-points_dep
+dep$total_charge <- nb
 
