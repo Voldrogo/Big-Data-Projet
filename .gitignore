@@ -1,0 +1,13 @@
+# Données lourdes
+data/
+
+# Fichiers R
+.RData
+.Rhistory
+.Rapp.history
+
+# Fichiers système Mac
+.DS_Store
+
+# Claude
+.claude/
