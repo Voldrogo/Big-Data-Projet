@@ -1,0 +1,51 @@
+# Ex 1
+
+c <- read.table("c:/Users/carol/Documents/Cours/Big Data/anesthesie.txt",header = TRUE);c[,1];
+reg <- glm(Y ~ X1, data = c, family = binomial);
+summary(reg);
+
+new_X1 <- list("X1"=1.25)
+predict(reg, new_X1,type="response") # Proba d'avoir 1 = 0.38, donc plus de chance de ne pas bouger le bras
+
+x <- seq(from = 0, to = 2.5, by = 0.1); 
+new_X1 <- list("X1"= x); new_X1;
+predict(reg,new_X1,type = "response");  #reg,data.frame(X1=1.25),type = "response") ça marche aussi
+
+plot(c[,2],c[,1]);
+curve( predict(reg,data.frame(X1=x),type = "response"), add = TRUE);
+
+c;
+
+library(dplyr)
+w <- sample_n(c,30);w; # mélange les données
+erreur <- NULL # pas oublier de l'introduire
+for (i in 1:5){
+  ytest <- w[6*(i-1)+1:6,1]
+  x1test <- w[6*(i-1)+1:6,2]
+  ytrain <- w[-(6*(i-1)+1:6),1]#ça enleve ces valeurs là
+  x1train <- w[-(6*(i-1)+1:6),2]
+  train <- w[-(6*(i-1)+1:6),]
+  
+  reg_log <- glm(ytrain ~ x1train, data = train, family = binomial);
+  test <- predict(reg_log,data.frame(x1train=x1test), type = "response"); # c'est bien x1train et plus X1 !!!!
+  pred.mod <- factor (ifelse(test > 0.5,"1","0")) # mettre des 0 et des 1 et pas des probas
+  mc <- table(ytest,pred.mod);mc;
+  t <- (mc[1,2] + mc[2,1]) / sum(mc) # ce qui est vrai sur tout
+  erreur <- c(erreur,t); erreur
+  
+}
+
+taux_erreur <- mean(erreur); taux_erreur;
+
+#Ex 2 
+
+c <- read.table("c:/Users/carol/Documents/Cours/Big Data/crimes.txt",header = FALSE);c;
+source("c:/Users/carol/Documents/Cours/Big Data/cercleCor.R");
+X<-DataCrimes()
+ACP <- prcomp(X)
+plot(ACP)
+
+library(FactoMineR)
+res.pca = PCA(X,scale.unit=TRUE,ncp=5,graph=7)
+plot.PCA(res.pca,axes=c(1,2), choix ="ind")
+dimdesc(res.pca,axes=c(1,2))

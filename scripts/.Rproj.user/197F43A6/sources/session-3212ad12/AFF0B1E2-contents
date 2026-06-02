@@ -1,0 +1,42 @@
+
+
+DataCrimes <- function() {
+  data <- read.table("crimes.txt", row.names=1)
+  names(data) <- c("Meurtre","Viol","Vol","Agression","Cambriolage","Larcin","Voiture")
+  return(as.matrix(data))
+}
+
+
+
+CercleCor <- function(rho) {
+  plot(0,col="transparent",xlim=c(-1,1),ylim=c(-1,1),asp=1,main="",xlab="",ylab="",bty='n',las=1)
+  symbols(x=0,y=0,circles=1,inches=F,add=T)
+  arrows(0,0,rho[,1],rho[,2],col="red",length=0.15)
+  text(1.1*rho[,1:2]/sqrt( rowSums(rho[,1:2]^2 )),labels=rownames(rho),col="red")
+  abline(h=0,lty=3); abline(v=0,lty=3)
+}
+
+Biplot <- function(C,rho) {
+  # Plan Principal
+  xpp <- max(abs(C[,1]))
+  ypp <- max(abs(C[,2]))
+  par(mar=c(5,4,4,5)+.1)
+  plot(C[,1:2], col="transparent", cex=cos2, xlim=c(-xpp,xpp), ylim=c(-ypp,ypp), main="", xlab="", ylab="",bty='n',las=1)
+  abline(h=0,lty=3); abline(v=0,lty=3)
+  text(C[,1:2],labels=rownames(C))
+  
+  # Correlations
+  par(new=TRUE,las=1)
+  plot(0,col="transparent",xlim=c(-1,1),ylim=c(-1,1),asp=1,main="",xlab="",ylab="",xaxt="n",yaxt="n",bty='n')
+  
+  axis(3,col="red",col.ticks="red",labels = FALSE)
+  at=axTicks(1)
+  mtext(side=3,text=at,at=at,col="red",line=1)
+  
+  axis(4,col="red",col.ticks="red",labels=FALSE)
+  at=axTicks(2)
+  mtext(side=4,text=at,at=at,col="red",line=1)
+  
+  arrows(0,0,rho[,1],rho[,2],col="red",length=0.15)
+  text(1.1*rho[,1:2]/sqrt( rowSums(rho[,1:2]^2 )),labels=rownames(rho),col="red")
+}

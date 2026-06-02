@@ -1,12 +1,18 @@
 c <- read.csv("C:/Users/carol/Documents/Cours/Projet/voiture_electrique/Big-Data-Projet/data/fichier_nettoye.csv",header = TRUE, sep = ',');
 
-c["code_insee_commune"];
+c["coordonneesXY"];
 
-library(mapsf)
-library(sf)
+library(mapsf) #sert à afficher la carte
+library(sf) #pour tout ce qui est relatif à l'affiche de carte
 
-mtq <- mf_get_mtq()
-dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE)
-mf_map(x = mtq, var = dep, type = "choro")
-mf_map(x = dep, lwd = 2, col = NA, add = TRUE) # affiche le contour des départements
+
+dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
+
+mf_map(x = dep) # affiche la carte de la france
+
+num_dep <- substr(c$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
+
+
+nb = table(num_dep)
+
 
