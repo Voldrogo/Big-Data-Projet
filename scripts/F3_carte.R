@@ -10,7 +10,8 @@ mf_map(x = mtq, var = "FR", type = "choro")
 install.packages(c("units", "classInt"))
 install.packages("sf")
 library(sf)
-dep <- st_read("data/lot46.gpkg", layer = "departement", quiet = TRUE)
+dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE)
 mf_map(x = mtq, var = dep, type = "choro")
 mf_map(x = dep, lwd = 2, col = NA, add = TRUE) # affiche le contour des départements
 sf::st_read
+getwd()
