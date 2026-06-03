@@ -1,11 +1,28 @@
 #Regression Lineaire
 ################################################################"
-irve <- read.csv("../../IRVE.csv",header = TRUE)
+irve <- read.csv("../IRVE2.csv",header = TRUE)
 library(rgl)
 modele1<-library(rgl)
-modele1<-lm(puissance_nominale ~ toupper(gratuit),toupper(paiement_acte),toupper(reservation), data=irve)
+modele1<-lm(puissance_nominale ~ toupper(gratuit)+toupper(paiement_acte)+toupper(reservation), data=irve)
 summary(modele1)
 plot(modele1)
+
+modele1 <- lm(puissance_nominale ~  nbre_pdc +
+                prise_type_ef + prise_type_2 + prise_type_combo_ccs +
+                prise_type_chademo + prise_type_autre + gratuit +
+                paiement_acte + paiement_cb + paiement_autre +
+                reservation + station_deux_roues +
+                consolidated_longitude + consolidated_latitude,
+              data = irve)
+summary(modele1)
+plot(modele1)
+
+
+
+str(irve)
+table(irve$condition_acces)
+
+
 ###################################################################
 #Regression logistique
 predict.glm(model,data.frame(X1=1.25),type="response")
