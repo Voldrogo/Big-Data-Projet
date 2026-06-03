@@ -1,12 +1,12 @@
 {
-    "id": "60FD4D50",
-    "path": "~/Cours/Projet/voiture_electrique/Big-Data-Projet/rapport/Rapport.Rmd",
+    "id": "C80CC51F",
+    "path": "C:/Users/carol/Downloads/exemple_regression_simple.R",
     "project_path": null,
-    "type": "r_markdown",
+    "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": false,
-    "created": 1780469887614.0,
+    "created": 1780473633669.0,
     "source_on_save": false,
     "relative_order": 4,
     "properties": {
@@ -14,11 +14,11 @@
         "Source": "Source"
     },
     "folds": "",
-    "lastKnownWriteTime": 1780386545,
+    "lastKnownWriteTime": 1780473629,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1780386545,
+    "last_content_update": 1780473629,
     "read_only": false,
     "read_only_alternatives": []
 }

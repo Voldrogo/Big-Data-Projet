@@ -1,32 +1,141 @@
 ---
-title: "Rapport"
-output: pdf_document
-date: "2026-06-02"
+title: 'Projet Big Data : Étude des données IRVE'
+author: "Forner Caroline, Daoudi Rayane, Le Néchet Manon"
+date: "2026-06-01"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+## Introduction
+
+Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à analyser la base nationale des Infrastructures de Recharge pour Véhicules Électriques (IRVE). En combinant traitements statistiques et visualisations avancées, notre travail explore les dynamiques de déploiement des stations sur le territoire national. De la phase de nettoyage des données brutes à la modélisation prédictive, ce rapport détaille la méthodologie déployée pour transformer ce volume important de données en indicateurs stratégiques de mobilité durable.
+
+# Diagramme de Gantt
+
+Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.jpg)
+
+# Fonctionnalité 1
+
+## Description du jeu de données
+
+```{r description}
+
 ```
 
-## R Markdown
+## Statistiques descriptives univariées
 
+```{r univariées}
 
-Données publiques obtenues sur data.gouv.fr concernant les Infrastructures de recharge pour véhicules électriques (IRVE) 
-
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
 ```
 
-## Including Plots
+## Nettoyage des données
 
-You can also embed plots, for example:
+```{r nettoyage}
 
-```{r pressure, echo=FALSE}
-plot(pressure)
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+# Fonctionnalité 2
+
+## Représentation Graphique
+
+Évolution du déploiement : Ce graphique retrace le rythme d'installation des bornes mois par mois pour visualiser les périodes d'accélération du réseau.
+
+```{r points}
+CPS1985 <- read.csv("C:/Users/manon/OneDrive/Documents/CoursIsen/A3/S6/projet_bigdata/IRVE.csv",header = TRUE)
+date <- as.Date(CPS1985$date_mise_en_service)# Permet de convertir en une date qui est représenter dans un calendrier
+annee_mois <- format(date, "%Y-%m")#Permet de mettre un format année-mois
+evolution <- table(annee_mois)# Permet de compter le nombre de mise en service par mois
+plot(evolution, type="o",col="blue", main="Évolution des mises en service",xlab="Date", ylab="Nombre de stations")
+```
+
+Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes dans la base de données et les affiche sous forme de graphique en secteurs pour visualiser leur répartition.
+
+```{r camembert}
+library(dplyr)
+library(ggplot2)
+# 1. Préparation des données
+df <- as.data.frame(table(CPS1985$nom_enseigne))
+# 2. Filtrage du top 15
+top_df <- df %>%
+  arrange(desc(Freq)) %>%
+  head(15)
+# 3. Création du graphique
+ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) + 
+  geom_col(width = 1, color = "white") + 
+  coord_polar(theta = "y") + 
+  theme_void() + 
+  labs(title = "Top 15 des enseignes", fill = "Enseigne")
+```
+
+## Histogramme
+
+Analyse des types de prises : Ce script convertit les variables binaires en valeurs logiques, comptabilise le nombre total de stations équipées pour chaque standard et génère un diagramme en barres comparatif.
+
+```{r histogramme}
+#force la conversion TRUE/FALSE pour les variables de type prise
+CPS1985$prise_type_ef <- as.logical(CPS1985$prise_type_ef)
+CPS1985$prise_type_2 <- as.logical(CPS1985$prise_type_2)
+CPS1985$prise_type_combo_ccs <- as.logical(CPS1985$prise_type_combo_ccs)
+CPS1985$prise_type_chademo <- as.logical(CPS1985$prise_type_chademo)
+#on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
+donnees_prises <- c(
+  "EF" = sum(CPS1985$prise_type_ef == TRUE, na.rm = TRUE),
+  "Type 2" = sum(CPS1985$prise_type_2 == TRUE, na.rm = TRUE),
+  "Combo CCS" = sum(CPS1985$prise_type_combo_ccs == TRUE, na.rm = TRUE),
+  "CHAdeMO" = sum(CPS1985$prise_type_chademo == TRUE, na.rm = TRUE)
+)
+print(donnees_prises)
+#table<-table(CPS1985$prise_type_ef,CPS1985$prise_type_2, CPS1985$prise_type_combo_ccs, CPS1985$prise_type_chademo)
+barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
+```
+
+# Fonctionnalité 3
+
+## Carte de chaleur
+
+Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la densité spatiale des stations de recharge, identifiant ainsi instantanément les zones à forte concentration et les secteurs moins équipés.
+
+```{r carte_chaleur}
+
+```
+
+## Regroupement et coloration
+
+Regroupement (Clustering) : Cette méthode permet de segmenter les stations de recharge en groupes homogènes selon leurs caractéristiques communes, facilitant ainsi l'analyse des typologies d'infrastructures.
+
+Coloration (Mapping) : La coloration permet d'associer visuellement des indicateurs quantitatifs ou qualitatifs à chaque zone géographique, rendant les disparités territoriales immédiatement lisibles.
+
+```{r regroupement_coloration}
+
+```
+
+# Fonctionnalité 4
+
+## Tableau croisé
+
+```{r Tableau}
+
+```
+
+## Graphique
+
+```{r Graphique}
+
+```
+
+# Fonctionnalité 5
+
+## Regression
+
+```{r Graphique}
+
+```
+
+## Regression Logistique
+
+```{r Graphique}
+
+```
+
+# Fonctionnalité 6

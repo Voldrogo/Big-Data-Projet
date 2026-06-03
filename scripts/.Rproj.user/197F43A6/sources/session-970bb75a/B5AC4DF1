@@ -1,0 +1,30 @@
+{
+    "id": "B5AC4DF1",
+    "path": "~/Cours/Projet/voiture_electrique/Big-Data-Projet/rapport/Rapport.Rmd",
+    "project_path": null,
+    "type": "r_markdown",
+    "hash": "2095054733",
+    "contents": "",
+    "dirty": false,
+    "created": 1780472861339.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "rmdVisualMode": "false",
+        "rmdVisualWrapConfigured": "true",
+        "docOutlineVisible": "1",
+        "cursorPosition": "133,0",
+        "scrollLine": "122",
+        "rmdVisualCollapsedChunks": ""
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1780475041,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1780475080841,
+    "read_only": false,
+    "read_only_alternatives": []
+}

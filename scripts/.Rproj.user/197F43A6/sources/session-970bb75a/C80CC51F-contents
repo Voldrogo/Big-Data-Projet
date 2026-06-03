@@ -1,0 +1,46 @@
+donnees <-read.csv2("C:\\Users\\Matthieu\\Documents\\ISEN\\isen\\cours_stat\\cours_big_data_2023\\Regression\\data_hauteur.csv")
+summary(donnees)
+boxplot(donnees[,2:3])
+attach(donnees)
+plot(Taille,Performance)
+
+modlin <- lm(Performance~Taille)
+modlin
+summary(modlin)
+lines(Taille,predict(modlin,as.data.frame(Taille)))
+lines(Taille,1.7312+0.3425*Taille)
+
+xbar <- mean(Taille)
+ybar <- mean(Performance)
+
+points(xbar,ybar,pch=10)
+
+modlin$coefficients
+modlin$residuals
+
+qqnorm(modlin$residuals)
+plot(modlin)
+
+library(lmtest)
+bptest(Performance~Taille)$p.value
+
+library(rstatix)
+outliers_Taille<-identify_outliers(as.data.frame(Taille))
+outliers_perf<-identify_outliers(as.data.frame(Performance))
+
+
+data<-donnees[-17,]
+attach(data)
+plot(Taille,Performance)
+modlin <- lm(Performance~Taille)
+summary(modlin)
+lines(Taille,predict(modlin,as.data.frame(Taille)))
+plot(modlin)
+
+data<-donnees[-c(14,17,19),]
+attach(data)
+plot(Taille,Performance)
+modlin <- lm(Performance~Taille)
+summary(modlin)
+plot(modlin)
+lines(Taille,predict(modlin,as.data.frame(Taille)))

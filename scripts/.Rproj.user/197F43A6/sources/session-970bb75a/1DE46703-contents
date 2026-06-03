@@ -127,7 +127,6 @@ Regroupement (Clustering) : Cette méthode permet de segmenter les stations de r
 Coloration (Mapping) : La coloration permet d'associer visuellement des indicateurs quantitatifs ou qualitatifs à chaque zone géographique, rendant les disparités territoriales immédiatement lisibles.
 
 ```{r regroupement_coloration}
-# carte intéractive 
 library(mapview)
 library(leaflet)
 library(mapedit)

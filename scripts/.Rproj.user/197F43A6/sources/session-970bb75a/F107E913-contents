@@ -1,0 +1,97 @@
+# Ex 1 
+#1
+nuage <- plot(c(420,380,350,400,440,380,450,420),c(5.5,6,6.5,6,5,6.5,4.5,5));
+#2
+X <- cbind(rep(1,8), c(420,380,350,400,440,380,450,420) );X; # concat les deux matrices en une, existe aussi rbind selon si l'on veut la concat en col ou ligne 
+#3
+y <- matrix(c(5.5,6,6.5,6,5,6.5,4.5,5),1,8);y;
+y <- t(y);y;
+b <- solve(t(X)%*%X)%*%t(X)%*%y;b #solve inverse une matrice
+# B correspond à une estimation des paramètres beta 0 et beta 1
+moyX <- mean(c(420,380,350,400,440,380,450,420))
+moyY <- mean(c(5.5,6,6.5,6,5,6.5,4.5,5))
+tabX <- (c(420,380,350,400,440,380,450,420) - moyX); tabX;
+tabY <- c(5.5,6,6.5,6,5,6.5,4.5,5)-moyY
+b1 <- (1/(sum(tabX^2))) *sum(tabX*tabY);b1;
+b0 <- moyY - b1*moyX;b0;
+
+model <-lm(y~X - 1)
+# Si on veut supprimer le X1 vide on fait 
+lm(y~X -1)
+
+coef(model)
+
+plot(c(420,380,350,400,440,380,450,420),c(5.5,6,6.5,6,5,6.5,4.5,5));
+abline(model); # Je sais pas pourquoi, les deux veulent pas se mettre ensemble... 
+# 6 
+#Oui, il est pertinent 
+
+# EX 2 
+
+#1
+# C'est le salaire en 1985, en fonction du niveau d'éducation, du sexe
+library(AER)
+data(CPS1985)
+
+#3
+#les param sont : le niveau d'étude, l'expérience professionnelle
+
+#4
+lm(CPS1985$wage~CPS1985$education+CPS1985$experience) 
+modele1 <- lm(wage~education+experience, data = CPS1985); modele1$coefficients # Les deux marchent !! 
+summary(modele1) #education et experience sont positives, donc plus ils sont hauts plus Y ici le salaire va être haut
+# Adjusted R-squared:  0.199  donc c'est très faible, la valeur est très basse
+# Le RSE, plus il est faible, mieux c'est
+
+modele2 <- lm(log(wage)~education+experience, data = CPS1985); modele2$coefficients # Les deux marchent !! 
+summary(modele2)
+#log(wage) enlève l' "l'effet trompette"
+#l'intercepteur (beta0) a augmenté, beta1 et beta2 ont légèrement diminué
+
+#5
+modele3 <- lm(log(wage)~education+experience+gender, data = CPS1985); modele3$coefficients
+summary(modele3)
+#Coeff du genre n'est pas égale à 0 donc il a un impact sur le salaire (négatif donc quand no est une femme en 1985, on est moins payé)
+
+#6
+modele4 <- lm(log(wage)~education+experience+I(experience^2)+gender, data = CPS1985); modele2$coefficients # Expérience ^2 ne marche pas car il y a déjà la variable expérience, donc ce qu'il fait faire c'est ce qui est fait ici
+summary(modele4)
+# expérience^2 < 0, signifie que quand on arrive à la retraite, on a moins de possibilité d'augmentation de salaire
+#les performances du modèle ont augmenté
+
+
+#Ex 3 
+
+# On cherche à expliquer V qui est la variable dépendante en fonction de U, variable explicative
+
+#Faire des graphiques etc
+
+# moindre carré en linéaire 
+U <- c(40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150)
+V <- c(9, 11, 20, 27, 39, 45, 58, 78, 79, 93, 108, 124)
+model <- lm (V~U)
+summary(model)
+plot(U,V)
+cor(U,V)
+
+#sigma est l'écart-type associé à l'erreur. On a une formule dans le cours pour calculer sigma² donne 5,65
+sqrt(sum(model$residuals^2)/10)
+
+#tracer la droite de régression -> les chiffres en dur, c'est les coef ! 
+plot(U,V);
+lines(U,-43.36247+1.06259*U);
+
+#g 
+new_U <- list("U"=U)
+hatV <- predict(model, new_U)
+RSS <- sum((V-hatV)^2)
+TSS <- sum((V-mean(V))^2)
+
+TSS -RSS
+#plus simple et donne tout d'un coup
+anova(model)
+(TSS-RSS)/TSS*100
+RSS/TSS*100
+#j 
+# on utilise la fonction predict
+predict()

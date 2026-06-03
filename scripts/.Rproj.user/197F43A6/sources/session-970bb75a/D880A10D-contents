@@ -1,4 +1,4 @@
-irve <- read.csv("C:/Users/carol/Documents/Cours/Projet/voiture_electrique/IRVE-CLEAN.csv",header = TRUE);
+irve <- read.csv("../IRVE-CLEAN.csv",header = TRUE);
 
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
