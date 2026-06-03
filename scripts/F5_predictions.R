@@ -20,7 +20,7 @@ plot(modele1)
 
 
 str(irve)
-table(irve$condition_acces)
+table(irve$tarification)
 
 
 ###################################################################
