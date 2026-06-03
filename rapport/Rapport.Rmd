@@ -3,11 +3,11 @@ title: 'Projet Big Data : Étude des données IRVE'
 author: "Forner Caroline, Daoudi Rayane, Le Néchet Manon"
 date: "2026-06-01"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
-## Introduction
+# Introduction
 
 Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à analyser la base nationale des Infrastructures de Recharge pour Véhicules Électriques (IRVE). En combinant traitements statistiques et visualisations avancées, notre travail explore les dynamiques de déploiement des stations sur le territoire national. De la phase de nettoyage des données brutes à la modélisation prédictive, ce rapport détaille la méthodologie déployée pour transformer ce volume important de données en indicateurs stratégiques de mobilité durable.
 
@@ -42,11 +42,26 @@ Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.
 Évolution du déploiement : Ce graphique retrace le rythme d'installation des bornes mois par mois pour visualiser les périodes d'accélération du réseau.
 
 ```{r points}
-irve <- read.csv("../../IRVE.csv",header = TRUE)
-date <- as.Date(irve$date_mise_en_service)# Permet de convertir en une date qui est représenter dans un calendrier
-annee_mois <- format(date, "%Y-%m")#Permet de mettre un format année-mois
-evolution <- table(annee_mois)# Permet de compter le nombre de mise en service par mois
-plot(evolution, type="o",col="blue", main="Évolution des mises en service",xlab="Date", ylab="Nombre de stations")
+irve <- read.csv("IRVE.csv", header = TRUE)
+date <- as.Date(irve$date_mise_en_service)
+annee <- format(date, "%Y")#Conversion en date et extraction de l'année
+#Comptage par année et conversion en dataframe
+evolution <- table(annee)
+df_evolution <- as.data.frame(evolution)
+colnames(df_evolution) <- c("Annee", "Nombre")
+
+#conversion en nombre et suppression des années erronées
+df_evolution$Annee <- as.numeric(as.character(df_evolution$Annee))
+df_evolution <- df_evolution[df_evolution$Annee > 2000, ]
+
+#Création du graphique (on utilise les colonnes de df_evolution)
+plot(df_evolution$Annee, 
+     df_evolution$Nombre, 
+     type = "o",  #permet d'avoir une courbe avec des points
+     col = "blue", 
+     main = "Évolution des mises en service",
+     xlab = "Année", 
+     ylab = "Nombre de stations")
 ```
 
 Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes dans la base de données et les affiche sous forme de graphique en secteurs pour visualiser leur répartition.
@@ -62,8 +77,8 @@ top_df <- df %>%
   head(15)
 # 3. Création du graphique
 ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) + 
-  geom_col(width = 1, color = "white") + 
-  coord_polar(theta = "y") + 
+  geom_col(width = 1, color = "white") + #Dessine les parts (le width=1 les colle entre elles)
+  coord_polar(theta = "y") + #Transforme les barres en cercle 
   theme_void() + 
   labs(title = "Top 15 des enseignes", fill = "Enseigne")
 ```
@@ -86,7 +101,6 @@ donnees_prises <- c(
   "CHAdeMO" = sum(irve$prise_type_chademo == TRUE, na.rm = TRUE)
 )
 print(donnees_prises)
-#table<-table(irve$prise_type_ef,irve$prise_type_2, irve$prise_type_combo_ccs, irve$prise_type_chademo)
 barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
 ```
 
@@ -100,7 +114,7 @@ Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la 
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
 
-dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
+dep <- st_read("lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
 
 num_dep <- substr(irve$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
 
@@ -109,8 +123,6 @@ tab_charge <- table(num_dep); tab_charge; # fournit le nombre de bornes par rég
 charges <- c()
 
 for (d in dep$INSEE_DEP){
-  print(d)
-  print(unname(tab_charge[d]))
   charges <- c(charges, unname(tab_charge[d])) #uname -> permet d'avoir uniquement le nombre de bornes sans le numéro du département associé
 }
 
@@ -156,23 +168,27 @@ map;
 ```
 
 # Fonctionnalité 4
+
 ## Tableau croisé
 
 ```{r Tableau}
 
 ```
+
 ## Graphique
 
 ```{r Graphique}
 
 ```
+
 # Fonctionnalité 5
+
 ## Regression
+Analyse par régression : Cette méthode statistique permet de modéliser et de quantifier les relations entre les variables, facilitant ainsi la prédiction de la puissance ou du déploiement futur des bornes.
 ```{r Regression}
 library(rgl)
 modele1<-library(rgl)
 summary(modele1)
-plot(modele1)
 
 modele1 <- lm(puissance_nominale ~  nbre_pdc +
                 prise_type_ef + prise_type_2 + prise_type_combo_ccs +
@@ -184,8 +200,11 @@ modele1 <- lm(puissance_nominale ~  nbre_pdc +
 summary(modele1)
 plot(modele1)
 ```
+
 ## Regression Logistique
+
 ```{r Regression Logistique}
 
 ```
+
 # Fonctionnalité 6
