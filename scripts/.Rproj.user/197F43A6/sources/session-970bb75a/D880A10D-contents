@@ -1,4 +1,4 @@
-irve <- read.csv("C:/Users/carol/Documents/Cours/Projet/voiture_electrique/Big-Data-Projet/IRVE-CLEAN.csv",header = TRUE);
+irve <- read.csv("C:/Users/carol/Documents/Cours/Projet/voiture_electrique/IRVE-CLEAN.csv",header = TRUE);
 
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
@@ -29,17 +29,8 @@ library(mapview)
 library(leaflet)
 library(mapedit)
 
-
-map <- leaflet(irve) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% 
-  addMarkers(lng = ~consolidated_longitude,
-    lat = ~consolidated_latitude,
-   # fillColor = ~ifelse(toupper(reservation) == TRUE, "green", "red"),
-   fillColor = "red",
-   popup =  ~paste("Puissance nominale :", puissance_nominale,"<br>","horaire :", horaires,"<br>","condition d'accès :", condition_acces,"<br>","gratuité :", gratuit ),
-    clusterOptions = markerClusterOptions()
-  )
-
 color <- c()
+count <- c()
 color <- c(color,ifelse(toupper(irve$reservation) == TRUE, "red", "green"))
 
 
@@ -61,25 +52,4 @@ map <- leaflet(irve) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>%
 
 map;
 
-icon_irve <- makeIcon(
-  iconUrl = "https://cdn-icons-png.flaticon.com/512/3103/3103446.png",
-  iconWidth = 25, iconHeight = 25
-)
-
-map <- leaflet(irve) %>%
-  addTiles() %>%
-  addMarkers(
-    lng = ~consolidated_longitude,
-    lat = ~consolidated_latitude,
-    icon = icon_irve,
-    clusterOptions = markerClusterOptions()
-  )
-
-map
-
-
-
-table(irve$condition_acces)
-table(irve$accessibilite_pmr)
-table(irve$reservation)
 
