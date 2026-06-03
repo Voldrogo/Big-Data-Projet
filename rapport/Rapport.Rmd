@@ -3,8 +3,8 @@ title: 'Projet Big Data : Étude des données IRVE'
 author: "Forner Caroline, Daoudi Rayane, Le Néchet Manon"
 date: "2026-06-01"
 output:
-pdf_document: default
-html_document: default
+  pdf_document: default
+  html_document: default
 ---
 
 ## Introduction
@@ -111,7 +111,23 @@ Coloration (Mapping) : La coloration permet d'associer visuellement des indicate
 ```
 
 # Fonctionnalité 4
+## Tableau croisé
 
+```{r Tableau}
+
+```
+## Graphique
+
+```{r Graphique}
+
+```
 # Fonctionnalité 5
+## Regression
+```{r Graphique}
 
+```
+## Regression Logistique
+```{r Graphique}
+
+```
 # Fonctionnalité 6
