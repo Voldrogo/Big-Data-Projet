@@ -1,0 +1,147 @@
+# ============================================================
+# F1 - Exploration & Nettoyage des données IRVE
+# ============================================================
+
+library(dplyr)
+
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+setwd("..")
+
+df <- read.csv("data/IRVE.csv", sep = ",", encoding = "UTF-8", stringsAsFactors = FALSE)
+cat("Dimensions initiales :", nrow(df), "lignes x", ncol(df), "colonnes\n")
+
+# Filtre les lignes selon une condition et affiche le nombre de lignes supprimées
+# df        : le dataframe à filtrer
+# condition : expression de filtre (ex: puissance >= 1)
+# msg       : message affiché dans la console
+filtrer <- function(df, condition, msg) {
+  avant <- nrow(df)
+  df <- df %>% filter({{ condition }})
+  cat(msg, ":", avant - nrow(df), "\n")
+  df
+}
+
+
+# ============================================================
+# 1. DOUBLONS
+# ============================================================
+
+cat("\n══════════════════════════════════════\n")
+cat("  1. DOUBLONS\n")
+cat("══════════════════════════════════════\n")
+
+df <- filtrer(df, !duplicated(df), "Doublons supprimés (lignes 100% identiques)")
+cat("Lignes après dédoublonnage :", nrow(df), "\n")
+
+
+# ============================================================
+# 2. VALEURS MANQUANTES
+# ============================================================
+
+cat("\n══════════════════════════════════════\n")
+cat("  2. VALEURS MANQUANTES\n")
+cat("══════════════════════════════════════\n")
+
+# Audit NA
+na_summary <- data.frame(
+  colonne     = names(df),
+  nb_na       = colSums(is.na(df)),
+  taux_na_pct = round(colSums(is.na(df)) / nrow(df) * 100, 2)
+) %>% arrange(desc(taux_na_pct))
+
+cols_avec_na <- na_summary[na_summary$nb_na > 0, ]
+if (nrow(cols_avec_na) > 0) {
+  cat("Colonnes avec NA :\n")
+  print(cols_avec_na, row.names = FALSE)
+} else {
+  cat("Aucune valeur manquante.\n")
+}
+
+# Supprimer colonnes > 70% NA
+cols_drop <- na_summary$colonne[na_summary$taux_na_pct > 70]
+if (length(cols_drop) > 0) {
+  cat("Colonnes supprimées (>70% NA) :", paste(cols_drop, collapse = ", "), "\n")
+  df <- df %>% select(-all_of(cols_drop))
+}
+
+# puissance_nominale : NA → médiane
+if ("puissance_nominale" %in% names(df) && any(is.na(df$puissance_nominale))) {
+  med <- median(df$puissance_nominale, na.rm = TRUE)
+  nb  <- sum(is.na(df$puissance_nominale))
+  df$puissance_nominale[is.na(df$puissance_nominale)] <- med
+  cat("puissance_nominale :", nb, "NA → médiane (", med, "kW)\n")
+}
+
+# Chaînes vides → NA
+df <- df %>% mutate(across(where(is.character), ~na_if(., "")))
+
+# Coordonnées manquantes → supprimer la ligne
+df <- filtrer(df, !is.na(consolidated_longitude) & !is.na(consolidated_latitude),
+              "Lignes supprimées (coords manquantes)")
+
+# Normalisation booléens : toutes variantes → "True" / "False"
+bool_cols <- c("gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
+               "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
+               "prise_type_chademo", "prise_type_autre", "reservation",
+               "cable_t2_attache", "station_deux_roues",
+               "consolidated_is_lon_lat_correct", "consolidated_is_code_insee_verified",
+               "consolidated_is_code_insee_modified")
+
+# Normalise les valeurs booléennes texte vers "True" ou "False"
+# x : vecteur de chaînes de caractères (ex: "TRUE", "true", "1", "oui")
+# Retourne "True", "False", ou la valeur d'origine si non reconnue
+normaliser_bool <- function(x) {
+  case_when(
+    tolower(x) %in% c("true",  "1", "oui", "yes") ~ "True",
+    tolower(x) %in% c("false", "0", "non", "no")  ~ "False",
+    TRUE ~ x
+  )
+}
+
+df <- df %>% mutate(across(any_of(bool_cols), normaliser_bool))
+cat("Booléens normalisés → True / False\n")
+
+
+# ============================================================
+# 3. VALEURS ABERRANTES
+# ============================================================
+
+cat("\n══════════════════════════════════════\n")
+cat("  3. VALEURS ABERRANTES\n")
+cat("══════════════════════════════════════\n")
+
+# puissance_nominale hors [1–500 kW]
+cat("puissance_nominale — Min:", min(df$puissance_nominale, na.rm = TRUE),
+    "| Max:", max(df$puissance_nominale, na.rm = TRUE), "kW\n")
+df <- filtrer(df, puissance_nominale >= 1 & puissance_nominale <= 500,
+              "Lignes aberrantes puissance (<1 ou >500 kW) supprimées")
+
+# Normalisation aux paliers standards
+paliers  <- c(3.7, 7.4, 11, 22, 50, 75, 100, 150, 175, 200, 250, 300, 350, 400)
+df$puissance_nominale <- sapply(df$puissance_nominale,
+                                function(x) paliers[which.min(abs(paliers - x))])
+cat("puissance_nominale normalisée aux paliers standards\n")
+
+# Coordonnées hors France
+df <- filtrer(df,
+              consolidated_longitude >= -5.5 & consolidated_longitude <= 10 &
+              consolidated_latitude  >= 41   & consolidated_latitude  <= 51.5,
+              "Lignes hors France (GPS) supprimées")
+
+# nbre_pdc aberrant
+df <- filtrer(df, nbre_pdc >= 1 & nbre_pdc <= 100,
+              "Lignes aberrantes nbre_pdc (<1 ou >100) supprimées")
+
+
+# ============================================================
+# 4. EXPORT
+# ============================================================
+
+cat("\n══════════════════════════════════════\n")
+cat("  RÉSUMÉ FINAL\n")
+cat("══════════════════════════════════════\n")
+cat("Dimensions finales :", nrow(df), "lignes x", ncol(df), "colonnes\n")
+
+write.csv(df, "data/export_IA.csv", row.names = FALSE, fileEncoding = "UTF-8")
+cat("Export OK → data/export_IA.csv\n")
+
