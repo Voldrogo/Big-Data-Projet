@@ -33,8 +33,30 @@ library(mapedit)
 map <- leaflet(irve) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% 
   addMarkers(lng = ~consolidated_longitude,
     lat = ~consolidated_latitude,
-    popup =  ~paste("Puissance nominale :", puissance_nominale,"<br>","horaire :", horaires,"<br>","condition d'accès :", condition_acces,"<br>","gratuité :", gratuit ),
+   # fillColor = ~ifelse(toupper(reservation) == TRUE, "green", "red"),
+   fillColor = "red",
+   popup =  ~paste("Puissance nominale :", puissance_nominale,"<br>","horaire :", horaires,"<br>","condition d'accès :", condition_acces,"<br>","gratuité :", gratuit ),
     clusterOptions = markerClusterOptions()
+  )
+
+color <- c()
+color <- c(color,ifelse(toupper(irve$reservation) == TRUE, "red", "green"))
+
+
+icons <- awesomeIcons(
+  icon = 'ios-close',
+  iconColor = 'black',
+  library = 'ion',
+  markerColor = color
+)
+
+
+map <- leaflet(irve) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% 
+  addAwesomeMarkers(lng = ~consolidated_longitude,
+        lat = ~consolidated_latitude,
+        icon=icons,
+        popup =  ~paste("Puissance nominale :", puissance_nominale,"<br>","horaire :", horaires,"<br>","condition d'accès :", condition_acces,"<br>","gratuité :", gratuit,"<br>","réservation :", reservation ),
+        clusterOptions = markerClusterOptions()
   )
 
 map;
@@ -57,7 +79,7 @@ map
 
 
 
-table(c$condition_acces)
-table(c$accessibilite_pmr)
-table(c$reservation)
+table(irve$condition_acces)
+table(irve$accessibilite_pmr)
+table(irve$reservation)
 
