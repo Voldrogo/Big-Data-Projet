@@ -21,6 +21,156 @@ Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.
 
 Nb lignes : 184505 -Nb colonnes : 47 colonnes -unité d'observation : une borne de recharge = 1 ligne Données issues de plusieurs opérateurs (DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via data.gouv.fr -Variable principal -Identification : id_station_itinerance, id_pdc_itinerance, nom_station -Localisation : adresse_station, consolidated_longitude, consolidated_latitude, consolidated_commune -Caractéristiques techniques : puissance_nominale, types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs, prise_type_chademo), nbre_pdc -Accès : condition_acces, gratuit, paiement_cb, horaires -Temporel : date_mise_en_service, date_maj
 
+
+## Nettoyage des données
+
+### Doublons
+
+Les doublons correspondent à des lignes strictement identiques présentes plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter de la consolidation de plusieurs sources ou d'erreurs lors de l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines bornes dans les analyses, les lignes dupliquées sont supprimées en ne conservant qu'une seule occurrence de chaque enregistrement.
+
+```{r doublons}
+# Suppression des doublons exacts
+library(dplyr)
+irve <- read.csv("IRVE.csv", header = TRUE)
+nb_avant <- nrow(irve)
+donnees  <- irve %>% distinct()
+
+cat("Doublons supprimés :", nb_avant - nrow(donnees),
+    "| Lignes restantes :", nrow(donnees), "\n")
+```
+
+### Valeurs manquantes
+
+Un bilan des valeurs manquantes est effectué sur l'ensemble des variables. Les colonnes comportant plus de 70 % de données manquantes sont supprimées. La variable puissance_nominale est complétée par sa médiane lorsque celle-ci est absente.
+
+Les variables condition_acces et implantation_station sont également harmonisées afin de regrouper les différentes variantes d'écriture. Les chaînes vides sont remplacées par des valeurs manquantes (NA) et les lignes sans coordonnées géographiques sont supprimées. Enfin, les variables booléennes sont normalisées sous la forme « True » ou « False ».
+
+```{r val}
+# Bilan des valeurs manquantes
+nb_na_par_col <- colSums(is.na(donnees))
+
+bilan_na <- data.frame(
+  colonne     = names(donnees),
+  nb_na       = nb_na_par_col,
+  pourcentage = round(nb_na_par_col / nrow(donnees) * 100, 2)
+) %>% arrange(desc(pourcentage))
+
+# Suppression des colonnes avec plus de 70 % de NA
+colonnes_a_supprimer <- bilan_na$colonne[bilan_na$pourcentage > 70]
+
+if(length(colonnes_a_supprimer) > 0){
+  donnees <- donnees %>%
+    select(-all_of(colonnes_a_supprimer))
+}
+
+# Imputation de puissance_nominale par la médiane
+mediane_puissance <- median(donnees$puissance_nominale, na.rm = TRUE)
+
+donnees$puissance_nominale <- replace(
+  donnees$puissance_nominale,
+  is.na(donnees$puissance_nominale),
+  mediane_puissance
+)
+
+# Normalisation de condition_acces
+normaliser_acces <- function(x) {
+  case_when(
+    grepl("libre", tolower(iconv(x, to = "ASCII//TRANSLIT")))         ~ "Accès libre",
+    grepl("reserv|réserv", tolower(iconv(x, to = "ASCII//TRANSLIT"))) ~ "Accès réservé",
+    TRUE ~ x
+  )
+}
+donnees$condition_acces <- normaliser_acces(donnees$condition_acces)
+# Normalisation de implantation_station
+normaliser_implantation <- function(x) {
+  xn <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
+  case_when(
+    grepl("prive.*usage.*public|priv.*usage.*public", xn)     ~ "Parking privé à usage public",
+    grepl("prive.*client|priv.*client|reserv.*client", xn)    ~ "Parking privé réservé à la clientèle",
+    grepl("parking public", xn)                               ~ "Parking public",
+    grepl("voirie", xn)                                       ~ "Voirie",
+    grepl("station.*rapid|rapid.*station|dedie.*recharg", xn) ~ "Station dédiée à la recharge rapide",
+    TRUE ~ x
+  )
+}
+
+
+donnees$implantation_station <- normaliser_implantation(
+  donnees$implantation_station
+)
+
+# Chaînes vides vers NA
+donnees <- donnees %>%
+  mutate(across(where(is.character), ~na_if(., "")))
+
+# Suppression des lignes sans coordonnées
+donnees <- donnees %>%
+  filter(
+    !is.na(consolidated_longitude),
+    !is.na(consolidated_latitude)
+  )
+
+# Harmonisation des variables booléennes
+normaliser_booleens <- function(x) {
+  case_when(
+    tolower(x) %in% c("true",  "1", "oui", "yes") ~ "True",
+    tolower(x) %in% c("false", "0", "non", "no")  ~ "False",
+    TRUE ~ NA
+  )
+}
+colonnes_booleennes <- c("gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
+                         "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
+                         "prise_type_chademo", "prise_type_autre", "reservation",
+                         "cable_t2_attache", "station_deux_roues",
+                         "consolidated_is_lon_lat_correct", "consolidated_is_code_insee_verified",
+                         "consolidated_is_code_insee_modified")
+donnees <- donnees %>% mutate(across(any_of(colonnes_booleennes), normaliser_booleens))
+```
+
+### Valeurs aberrantes
+
+Les bornes présentant une puissance nominale inférieure à 1 kW ou supérieure à 500 kW sont supprimées. Les puissances restantes sont ensuite rapprochées des principaux paliers standards du marché.
+
+Les coordonnées situées hors de la France métropolitaine sont exclues et les stations dont le nombre de points de charge (nbre_pdc) est inférieur à 1 ou supérieur à 100 sont retirées du jeu de données.
+
+```{r aberrantes}
+library(dplyr)
+print(paste("Lignes au départ :", nrow(donnees)))
+# Puissance hors plage [1 ; 500] kW
+donnees <- donnees %>%
+  filter(
+    puissance_nominale >= 1,
+    puissance_nominale <= 500
+  )
+print(paste("Après puissance :", nrow(donnees)))
+
+# Normalisation aux paliers standards
+paliers <- c(
+  3.7, 7.4, 11, 22, 50, 75, 100,
+  150, 175, 200, 250, 300, 350, 400
+)
+
+donnees$puissance_nominale <- sapply(
+  donnees$puissance_nominale,
+  function(x) paliers[which.min(abs(paliers - x))]
+)
+
+# Coordonnées hors France métropolitaine
+donnees <- donnees %>%
+  filter(
+    consolidated_longitude >= -5.5,
+    consolidated_longitude <= 10,
+    consolidated_latitude  >= 41,
+    consolidated_latitude  <= 51.5
+  )
+
+# Nombre de points de charge aberrant
+donnees <- donnees %>%
+  filter(
+    nbre_pdc >= 1,
+    nbre_pdc <= 100
+  )
+```
 ## Statistiques descriptives univariées
 
 ### Puissance nominale
@@ -107,171 +257,6 @@ barplot(prises,
 ### Horaires
 
 La grande majorité des bornes sont accessibles **24h/24 et 7j/7** (`24/7`), ce qui reflète leur vocation de service public. Les exceptions concernent les bornes en parking d'entreprise ou de surface avec des plages horaires définies. \## Nettoyage des données
-
-### Doublons
-
-Les doublons correspondent à des lignes strictement identiques présentes plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter de la consolidation de plusieurs sources ou d'erreurs lors de l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines bornes dans les analyses, les lignes dupliquées sont supprimées en ne conservant qu'une seule occurrence de chaque enregistrement.
-
-```{r doublons}
-# Suppression des doublons exacts
-nb_avant <- nrow(donnees)
-donnees  <- donnees %>% distinct()
-
-cat("Doublons supprimés :", nb_avant - nrow(donnees),
-    "| Lignes restantes :", nrow(donnees), "\n")
-```
-
-### Valeurs manquantes
-
-Un bilan des valeurs manquantes est effectué sur l'ensemble des variables. Les colonnes comportant plus de 70 % de données manquantes sont supprimées. La variable puissance_nominale est complétée par sa médiane lorsque celle-ci est absente.
-
-Les variables condition_acces et implantation_station sont également harmonisées afin de regrouper les différentes variantes d'écriture. Les chaînes vides sont remplacées par des valeurs manquantes (NA) et les lignes sans coordonnées géographiques sont supprimées. Enfin, les variables booléennes sont normalisées sous la forme « True » ou « False ».
-
-```{r valeurs manquantes}
-
-library(dplyr)
-
-filtrer <- function(donnees, condition, message) {
-  nb_avant <- nrow(donnees)
-  donnees  <- donnees %>% filter({{ condition }})
-  cat(message, ":", nb_avant - nrow(donnees), "\n")
-  donnees
-}
-
-
-
-# 2. VALEURS MANQUANTES
-# Tableau récapitulatif des NA par colonne
-nb_na_par_col <- colSums(is.na(donnees))
-bilan_na <- data.frame(
-  colonne     = names(donnees),
-  nb_na       = nb_na_par_col,
-  pourcentage = round(nb_na_par_col / nrow(donnees) * 100, 2)
-) %>% arrange(desc(pourcentage))
-
-colonnes_avec_na <- bilan_na[bilan_na$nb_na > 0, ]
-if (nrow(colonnes_avec_na) > 0) {
-  cat("Colonnes avec NA :\n")
-  print(colonnes_avec_na, row.names = FALSE)
-} else {
-  cat("Aucune valeur manquante.\n")
-}
-
-# Supprimer les colonnes avec plus de 70% de NA
-colonnes_a_supprimer <- bilan_na$colonne[bilan_na$pourcentage > 70]
-if (length(colonnes_a_supprimer) > 0) {
-  cat("Colonnes supprimées (>70% NA) :", paste(colonnes_a_supprimer, collapse = ", "), "\n")
-  donnees <- donnees %>% select(-all_of(colonnes_a_supprimer))
-}
-
-# puissance_nominale : NA → médiane
-mediane_puissance <- median(donnees$puissance_nominale, na.rm = TRUE)
-nb_na_puissance   <- sum(is.na(donnees$puissance_nominale))
-donnees$puissance_nominale <- replace(donnees$puissance_nominale,
-                                      is.na(donnees$puissance_nominale), mediane_puissance)
-cat("puissance_nominale :", nb_na_puissance, "NA → médiane (", mediane_puissance, "kW)\n")
-
-# Normalise condition_acces : toutes les variantes → "Accès libre" ou "Accès réservé"
-# x : vecteur de chaînes (ex: "Accs libre", "AccÃ¨s libre", "Acc,s libre")
-# Retourne "Accès libre", "Accès réservé", ou la valeur d'origine si non reconnue
-normaliser_acces <- function(x) {
-  case_when(
-    grepl("libre", tolower(iconv(x, to = "ASCII//TRANSLIT")))         ~ "Accès libre",
-    grepl("reserv|réserv", tolower(iconv(x, to = "ASCII//TRANSLIT"))) ~ "Accès réservé",
-    TRUE ~ x
-  )
-}
-
-donnees$condition_acces <- normaliser_acces(donnees$condition_acces)
-cat("condition_acces normalisée → Accès libre / Accès réservé\n")
-
-# Normalise implantation_station : regroupe les variantes vers les valeurs officielles
-# x : vecteur de chaînes (ex: "Parking priv usage public", "parking privé à usage public")
-# Retourne la valeur normalisée ou la valeur d'origine si non reconnue
-normaliser_implantation <- function(x) {
-  xn <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
-  case_when(
-    grepl("prive.*usage.*public|priv.*usage.*public", xn)     ~ "Parking privé à usage public",
-    grepl("prive.*client|priv.*client|reserv.*client", xn)    ~ "Parking privé réservé à la clientèle",
-    grepl("parking public", xn)                               ~ "Parking public",
-    grepl("voirie", xn)                                       ~ "Voirie",
-    grepl("station.*rapid|rapid.*station|dedie.*recharg", xn) ~ "Station dédiée à la recharge rapide",
-    TRUE ~ x
-  )
-}
-
-donnees$implantation_station <- normaliser_implantation(donnees$implantation_station)
-cat("implantation_station normalisée\n")
-
-# Chaînes vides → NA
-donnees <- donnees %>% mutate(across(where(is.character), ~na_if(., "")))
-
-# Coordonnées manquantes → supprimer la ligne
-donnees <- filtrer(donnees,
-                   !is.na(consolidated_longitude) & !is.na(consolidated_latitude),
-                   "Lignes sans coordonnées supprimées")
-
-# Normalise les valeurs booléennes texte vers "True" ou "False"
-normaliser_booleens <- function(x) {
-  case_when(
-    tolower(x) %in% c("true",  "1", "oui", "yes") ~ "True",
-    tolower(x) %in% c("false", "0", "non", "no")  ~ "False",
-    TRUE ~ x
-  )
-}
-
-colonnes_booleennes <- c("gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
-                         "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
-                         "prise_type_chademo", "prise_type_autre", "reservation",
-                         "cable_t2_attache", "station_deux_roues",
-                         "consolidated_is_lon_lat_correct", "consolidated_is_code_insee_verified",
-                         "consolidated_is_code_insee_modified")
-
-donnees <- donnees %>% mutate(across(any_of(colonnes_booleennes), normaliser_booleens))
-cat("Booléens normalisés → True / False\n")
-```
-
-### Valeurs aberrantes
-
-Les bornes présentant une puissance nominale inférieure à 1 kW ou supérieure à 500 kW sont supprimées. Les puissances restantes sont ensuite rapprochées des principaux paliers standards du marché.
-
-Les coordonnées situées hors de la France métropolitaine sont exclues et les stations dont le nombre de points de charge (nbre_pdc) est inférieur à 1 ou supérieur à 100 sont retirées du jeu de données.
-
-```{r valeurs aberrantes}
-# Puissance hors plage [1 ; 500] kW
-donnees <- donnees %>%
-  filter(
-    puissance_nominale >= 1,
-    puissance_nominale <= 500
-  )
-
-# Normalisation aux paliers standards
-paliers <- c(
-  3.7, 7.4, 11, 22, 50, 75, 100,
-  150, 175, 200, 250, 300, 350, 400
-)
-
-donnees$puissance_nominale <- sapply(
-  donnees$puissance_nominale,
-  function(x) paliers[which.min(abs(paliers - x))]
-)
-
-# Coordonnées hors France métropolitaine
-donnees <- donnees %>%
-  filter(
-    consolidated_longitude >= -5.5,
-    consolidated_longitude <= 10,
-    consolidated_latitude  >= 41,
-    consolidated_latitude  <= 51.5
-  )
-
-# Nombre de points de charge aberrant
-donnees <- donnees %>%
-  filter(
-    nbre_pdc >= 1,
-    nbre_pdc <= 100
-  )
-```
 
 # Fonctionnalité 2
 
@@ -407,23 +392,21 @@ map;
 
 # Fonctionnalité 4
 
+## Tableau croisé
 La fonctionnalité 4 a pour objectif d'analyser les liens entre les variables du jeu de données. On distingue deux types d'analyses : les corrélations quantitatives entre variables numériques via le coefficient de Pearson, et les corrélations qualitatives entre variables catégorielles via le test du Chi². L'objectif est de déterminer quelles caractéristiques des bornes sont liées entre elles, et dans quelle mesure.
-
-## Nomalisation des données restante et chargement des données
-
 ```{r Tableau}
 library(dplyr)
 library(ggplot2)
 library(forcats)
 
 # ── Chargement ───────────────────────────────────────────────
-racine <- "/Users/voldrogo/Documents/Big-Data-Projet"
-setwd(racine)
-if (!dir.exists("output")) dir.create("output")
+#racine <- "/Users/voldrogo/Documents/Big-Data-Projet"
+#setwd(racine)
+#if (!dir.exists("output")) dir.create("output")
 
-donnees <- read.csv("data/IRVE.nettoyer.csv", sep = ",", stringsAsFactors = FALSE) %>%
-  mutate(across(where(is.character), ~na_if(., ""))) %>%
-  mutate(across(where(is.character), ~na_if(., "inconnu")))
+donnees <- donnees %>%
+mutate(across(where(is.character), ~na_if(., ""))) %>%
+mutate(across(where(is.character), ~na_if(., "inconnu")))
 
 cat("Données chargées :", nrow(donnees), "lignes\n")
 
@@ -444,12 +427,12 @@ donnees$implantation_station <- case_when(
 )
 ```
 
-## CORRÉLATIONS QUANTITATIVES
+## Graphique
 
 On calcule le coefficient de Pearson entre les variables numériques — puissance, nombre de PDC, latitude et longitude. Tous les r sont proches de zéro, ce qui confirme l'absence de relation linéaire entre la localisation géographique et les caractéristiques techniques des bornes.
 
 ```{r Graphique}
-setwd("/Users/voldrogo/Documents/Big-Data-Projet")
+#setwd("/Users/voldrogo/Documents/Big-Data-Projet")
 # Calcule r de Pearson et génère un nuage de points avec droite de régression
 nuage_points <- function(data, x, y, titre, fichier) {
   d <- data %>% filter(!is.na(.data[[x]]) & !is.na(.data[[y]]))
@@ -481,23 +464,26 @@ nuage_points(donnees, "consolidated_longitude", "nbre_pdc",
 
 
 ```
-
+![F4_biv_pdc_puissance](output/F4_biv_pdc_puissance.png)
+![F4_biv_pdc_puissance](output/F4_biv_lat_pdc.png)
+![F4_biv_pdc_puissance](output/F4_biv_lat_puissance.png)
+![F4_biv_pdc_puissance](output/F4_biv_lon_pdc.png)
 Les coefficients de corrélation obtenus sont tous très proches de zéro (de -0,019 à 0,068). Cela indique l’absence de relation linéaire notable entre la localisation géographique, la puissance des bornes et le nombre de points de charge. Ces variables semblent donc évoluer de manière largement indépendante.
 
 ## CORRÉLATIONS QUALITATIVES — Chi2 + Mosaicplot
 
 Pour les variables qualitatives, on utilise le test du Chi² qui mesure si deux variables sont indépendantes ou non. Une p-value inférieure à 0.05 indique une liaison significative. Ici tous nos tests sont significatifs — notamment l'implantation avec la prise Combo CCS, ce qui confirme que les stations dédiées à la recharge rapide concentrent effectivement les bornes DC haute puissance.
 
-```{r Regression}
-setwd("/Users/voldrogo/Documents/Big-Data-Projet")
+```{r correlationsquantlitative}
+#setwd("/Users/voldrogo/Documents/Big-Data-Projet")
 # Test Chi2 + mosaicplot
 # top_n : nombre de modalités max à afficher (les autres → "Other")
 test_chi2_mosaic <- function(data, var1, var2, titre, fichier, top_n = 6) {
   d <- data %>%
     filter(!is.na(.data[[var1]]) & !is.na(.data[[var2]])) %>%
     mutate(
-      v1 = fct_lump_n(.data[[var1]], top_n),
-      v2 = fct_lump_n(.data[[var2]], top_n)
+      v1 = fct_lump_n(as.factor(as.character(.data[[var1]])), top_n),
+      v2 = fct_lump_n(as.factor(as.character(.data[[var2]])), top_n)
     )
 
   tbl <- table(d$v1, d$v2)
@@ -522,6 +508,7 @@ test_chi2_mosaic(donnees, "implantation_station", "condition_acces",
                  "Implantation ↔ Condition d'accès",
                  "F4_chi2_implantation_acces.png")
 
+
 # Implantation ↔ Prise Combo CCS
 test_chi2_mosaic(donnees, "implantation_station", "prise_type_combo_ccs",
                  "Implantation ↔ Prise Combo CCS",
@@ -539,6 +526,10 @@ test_chi2_mosaic(donnees, "nom_operateur", "condition_acces",
 
 ```
 
+![F4_biv_pdc_puissance](output/F4_chi2_implantation_acces.png)
+![F4_biv_pdc_puissance](output/F4_chi2_implantation_ccs.png)
+![F4_biv_pdc_puissance](output/F4_chi2_acces_gratuit.png)
+![F4_biv_pdc_puissance](output/F4_chi2_operateur_acces.png)
 Les tests révèlent des associations significatives entre toutes les variables étudiées. Les relations les plus marquées concernent l’implantation, qui est fortement liée à la présence d’une prise Combo CCS et aux conditions d’accès. L’opérateur influence également les modalités d’accès, tandis que le lien entre condition d’accès et gratuité est significatif mais semble plus faible.
 
 # Fonctionnalité 5
@@ -548,25 +539,172 @@ Les tests révèlent des associations significatives entre toutes les variables 
 Analyse par régression : Cette méthode statistique permet de modéliser et de quantifier les relations entre les variables, facilitant ainsi la prédiction de la puissance ou du déploiement futur des bornes.
 
 ```{r Regression}
-library(rgl)
-modele1<-library(rgl)
-summary(modele1)
+library(tidyverse)
+library(car)        # VIF
+library(broom)
+library(gridExtra)
 
-modele1 <- lm(puissance_nominale ~  nbre_pdc +
-                prise_type_ef + prise_type_2 + prise_type_combo_ccs +
-                prise_type_chademo + prise_type_autre + gratuit +
-                paiement_acte + paiement_cb + paiement_autre +
-                reservation + station_deux_roues +
-                consolidated_longitude + consolidated_latitude,
-              data = donnees)
-summary(modele1)
-plot(modele1)
+# ── 1. NETTOYAGE & PRÉPARATION ────────────────────
+
+# Garder seulement les top 10 opérateurs, regrouper le reste en "Autre"
+top_operateurs <- names(sort(table(donnees$nom_operateur), decreasing = TRUE)[1:10])
+donnees$operateur_red <- factor(
+  ifelse(donnees$nom_operateur %in% top_operateurs, donnees$nom_operateur, "Autre")
+)
+
+# Supprimer les lignes avec NA sur les variables utiles
+vars_modele <- c("puissance_nominale", "nbre_pdc",
+                 "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
+                 "prise_type_chademo", "prise_type_autre",
+                 "gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
+                 "reservation", "station_deux_roues", "operateur_red")
+
+donnees_clean <- donnees %>%
+  select(all_of(vars_modele)) %>%
+  drop_na()
+
+cat(sprintf("✦ Observations utilisées : %d / %d\n", nrow(donnees_clean), nrow(donnees)))
+
+# ── 2. MODÈLE COMPLET (sans GPS, sans stepAIC) ────
+modele_complet <- lm(
+  puissance_nominale ~
+    nbre_pdc +
+    prise_type_ef + prise_type_2 + prise_type_combo_ccs +
+    prise_type_chademo + prise_type_autre +
+    gratuit + paiement_acte + paiement_cb + paiement_autre +
+    reservation + station_deux_roues +
+    operateur_red,
+  data = donnees_clean
+)
+
+# ── 3. SÉLECTION RAPIDE PAR P-VALUE ───────────────
+# Garder uniquement les variables significatives (p < 0.05)
+coefs_complet <- tidy(modele_complet) %>%
+  filter(term != "(Intercept)") %>%
+  # Pour les facteurs, extraire le nom de la variable de base
+  mutate(var_base = gsub("operateur_red.*", "operateur_red", term)) %>%
+  group_by(var_base) %>%
+  summarise(p_min = min(p.value), .groups = "drop") %>%
+  filter(p_min < 0.05) %>%
+  pull(var_base)
+
+cat("\n✦ Variables significatives retenues :\n")
+print(coefs_complet)
+
+# ── 4. MODÈLE FINAL ───────────────────────────────
+formule_finale <- as.formula(
+  paste("puissance_nominale ~", paste(coefs_complet, collapse = " + "))
+)
+
+modele_final <- lm(formule_finale, data = donnees_clean)
+
+# ── 5. VIF sur le modèle final ────────────────────
+cat("\n✦ VIF du modèle final :\n")
+tryCatch({
+  vif_vals <- vif(modele_final)
+  print(round(vif_vals, 2))
+  vars_vif_ok <- names(vif_vals[vif_vals <= 5])
+  
+  if (length(vars_vif_ok) < length(vif_vals)) {
+    cat("\n⚠ Variables retirées (VIF > 5) :",
+        paste(setdiff(names(vif_vals), vars_vif_ok), collapse = ", "), "\n")
+    formule_vif <- as.formula(
+      paste("puissance_nominale ~", paste(vars_vif_ok, collapse = " + "))
+    )
+    modele_final <- lm(formule_vif, data = donnees_clean)
+  }
+}, error = function(e) cat("VIF non calculable (modèle trop simple)\n"))
+
+# ── 6. RÉSULTATS ──────────────────────────────────
+cat("\n", strrep("═", 55), "\n")
+cat("   RÉSULTATS DU MODÈLE FINAL\n")
+cat(strrep("═", 55), "\n\n")
+print(summary(modele_final))
+
+sm <- summary(modele_final)
+cat(sprintf(
+  "\n  R²        = %.4f\n  R² ajusté = %.4f\n  RMSE      = %.2f\n  AIC       = %.1f\n",
+  sm$r.squared,
+  sm$adj.r.squared,
+  sqrt(mean(residuals(modele_final)^2)),
+  AIC(modele_final)
+))
+
+# ── 7. GRAPHIQUES DIAGNOSTICS ─────────────────────
+donnees_diag <- augment(modele_final)
+
+theme_custom <- theme_minimal(base_size = 11) +
+  theme(
+    plot.title      = element_text(face = "bold", size = 12),
+    panel.grid.minor = element_blank()
+  )
+
+p1 <- ggplot(donnees_diag, aes(.fitted, .resid)) +
+  geom_hline(yintercept = 0, linetype = "dashed", colour = "#e74c3c", linewidth = 0.6) +
+  geom_point(alpha = 0.3, colour = "#2c3e50", size = 1.2) +
+  geom_smooth(method = "loess", se = FALSE, colour = "#3498db", linewidth = 0.8) +
+  labs(title = "Résidus vs Valeurs ajustées", x = "Valeurs ajustées", y = "Résidus") +
+  theme_custom
+
+p2 <- ggplot(donnees_diag, aes(sample = .std.resid)) +
+  stat_qq(alpha = 0.3, colour = "#2c3e50", size = 1.2) +
+  stat_qq_line(colour = "#e74c3c", linewidth = 0.7) +
+  labs(title = "Q-Q Plot", x = "Quantiles théoriques", y = "Quantiles observés") +
+  theme_custom
+
+p3 <- ggplot(donnees_diag, aes(.fitted, sqrt(abs(.std.resid)))) +
+  geom_point(alpha = 0.3, colour = "#2c3e50", size = 1.2) +
+  geom_smooth(method = "loess", se = FALSE, colour = "#3498db", linewidth = 0.8) +
+  labs(title = "Scale-Location", x = "Valeurs ajustées", y = "√|Résidus std.|") +
+  theme_custom
+
+p4 <- ggplot(donnees_diag, aes(.hat, .std.resid)) +
+  geom_point(alpha = 0.3, colour = "#2c3e50", size = 1.2) +
+  geom_smooth(method = "loess", se = FALSE, colour = "#3498db", linewidth = 0.8) +
+  geom_vline(xintercept = 2 * mean(donnees_diag$.hat),
+             linetype = "dashed", colour = "#e74c3c", linewidth = 0.6) +
+  labs(title = "Résidus vs Levier", x = "Levier", y = "Résidus standardisés") +
+  theme_custom
+
+grid.arrange(p1, p2, p3, p4, ncol = 2,
+             top = "Diagnostics — Modèle final")
+
+# ── 8. IMPORTANCE DES VARIABLES ───────────────────
+tidy(modele_final) %>%
+  filter(term != "(Intercept)") %>%
+  mutate(
+    significatif = case_when(
+      p.value < 0.001 ~ "***",
+      p.value < 0.01  ~ "**",
+      p.value < 0.05  ~ "*",
+      TRUE            ~ ""
+    ),
+    terme = reorder(term, abs(statistic)),
+    direction = ifelse(statistic > 0, "Positif", "Négatif")
+  ) %>%
+  ggplot(aes(x = terme, y = statistic, fill = direction)) +
+  geom_col(alpha = 0.85, show.legend = TRUE) +
+  geom_text(aes(label = significatif,
+                hjust = ifelse(statistic > 0, -0.2, 1.2)),
+            size = 3.5, fontface = "bold") +
+  coord_flip() +
+  scale_fill_manual(values = c("Positif" = "#27ae60", "Négatif" = "#e74c3c")) +
+  labs(
+    title    = "Importance des variables — t-statistique",
+    subtitle = "*** p<0.001  ** p<0.01  * p<0.05",
+    x = NULL, y = "t-statistique", fill = "Effet"
+  ) +
+  theme_minimal(base_size = 11) +
+  theme(
+    plot.title    = element_text(face = "bold", size = 13),
+    plot.subtitle = element_text(colour = "grey50"),
+    legend.position = "bottom"
+  )
 ```
 
 ## Regression Logistique
 
 ```{r Regression Logistique}
-
 ```
 
 # Fonctionnalité 6
