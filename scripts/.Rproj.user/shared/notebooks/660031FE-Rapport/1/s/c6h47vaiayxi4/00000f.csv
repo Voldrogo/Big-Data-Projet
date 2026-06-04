@@ -1,5 +1,0 @@
-"0","irve <- read.csv(""../../IRVE.csv"",header = TRUE)"
-"0","date <- as.Date(irve$date_mise_en_service)# Permet de convertir en une date qui est représenter dans un calendrier"
-"0","annee_mois <- format(date, ""%Y-%m"")#Permet de mettre un format année-mois"
-"0","evolution <- table(annee_mois)# Permet de compter le nombre de mise en service par mois"
-"0","plot(evolution, type=""o"",col=""blue"", main=""Évolution des mises en service"",xlab=""Date"", ylab=""Nombre de stations"")"

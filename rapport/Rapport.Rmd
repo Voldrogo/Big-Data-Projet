@@ -352,6 +352,40 @@ plot(modele1)
 ## Regression Logistique
 
 ```{r Regression Logistique}
+trie_tarif <- t[t >= 100]              # garder uniquement les valeurs ≥ 100
+trie_tarif <- sort(trie_tarif, decreasing = FALSE)   # trier par ordre croissant
+
+valeurs_a_garder <- names(trie_tarif) # garde uniquement la valeur des variables pas le nombre d'occurence
+
+filtre_tarif <- irve[irve$tarification %in% valeurs_a_garder, ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+
+#table(filtre_tarif$tarification)
+
+
+filtre_tarif_euro <- filtre_tarif[ grepl("[0-9]+ ?(€|cts)", filtre_tarif$tarification), ] #garde toute les lignes qui respecte le grep
+
+#table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- as.numeric(
+  sub(",", ".",  # transforme les , en .
+      regmatches(filtre_tarif_euro$tarification, # renvoie uniquement les parties qui satisfont l'exigence 
+                           regexpr("[0-9]+([.,][0-9]+)?(?=[[:space:]]*(€|cts))", filtre_tarif_euro$tarification,perl=TRUE)))# renvoie toute les nombres qui sont suivi d'un € ou cts, =? signifie qu'on ne renvoie pas ces symboles 
+)
+#table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- ifelse( #transforme euro en centimes
+filtre_tarif_euro$tarification > 1,
+filtre_tarif_euro$tarification / 100,
+filtre_tarif_euro$tarification
+)
+
+#table(filtre_tarif_euro$tarification)
+
+tarif_gratuit <- irve[irve$gratuit %in% "True", ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+#table(tarif_gratuit$tarification)
+tarif_gratuit$tarification <- 0; # affecte un 0 à toute les variables
+filtre_tarif_final <- rbind(filtre_tarif_euro, tarif_gratuit)
+#table(filtre_tarif_final$tarification)
 
 ```
 

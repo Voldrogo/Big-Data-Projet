@@ -3,11 +3,11 @@ title: 'Projet Big Data : Étude des données IRVE'
 author: "Forner Caroline, Daoudi Rayane, Le Néchet Manon"
 date: "2026-06-01"
 output:
-  pdf_document: default
   html_document: default
+  pdf_document: default
 ---
 
-## Introduction
+# Introduction
 
 Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à analyser la base nationale des Infrastructures de Recharge pour Véhicules Électriques (IRVE). En combinant traitements statistiques et visualisations avancées, notre travail explore les dynamiques de déploiement des stations sur le territoire national. De la phase de nettoyage des données brutes à la modélisation prédictive, ce rapport détaille la méthodologie déployée pour transformer ce volume important de données en indicateurs stratégiques de mobilité durable.
 
@@ -19,11 +19,9 @@ Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.
 
 ## Description du jeu de données
 
-```{r description}
+Nb lignes : 184505 -Nb colonnes : 47 colonnes -unité d'observation : une borne de recharge = 1 ligne Données issues de plusieurs opérateurs (DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via data.gouv.fr -Variable principal -Identification : id_station_itinerance, id_pdc_itinerance, nom_station -Localisation : adresse_station, consolidated_longitude, consolidated_latitude, consolidated_commune -Caractéristiques techniques : puissance_nominale, types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs, prise_type_chademo), nbre_pdc -Accès : condition_acces, gratuit, paiement_cb, horaires -Temporel : date_mise_en_service, date_maj
 
-```
-
-## Statistiques descriptives univariées
+### Variable numérique
 
 ```{r univariées}
 
@@ -31,8 +29,156 @@ Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.
 
 ## Nettoyage des données
 
-```{r nettoyage}
+### Doublons
 
+Les doublons correspondent à des lignes strictement identiques présentes plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter de la consolidation de plusieurs sources ou d'erreurs lors de l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines bornes dans les analyses, les lignes dupliquées sont supprimées en ne conservant qu'une seule occurrence de chaque enregistrement.
+
+```{r doublons}
+# Suppression des doublons exacts
+library(dplyr)
+irve <- read.csv("IRVE.csv", header = TRUE)
+nb_avant <- nrow(irve)
+donnees  <- irve %>% distinct()
+
+cat("Doublons supprimés :", nb_avant - nrow(donnees),
+    "| Lignes restantes :", nrow(donnees), "\n")
+```
+
+### Valeurs manquantes
+
+Un bilan des valeurs manquantes est effectué sur l'ensemble des variables. Les colonnes comportant plus de 70 % de données manquantes sont supprimées. La variable puissance_nominale est complétée par sa médiane lorsque celle-ci est absente.
+
+Les variables condition_acces et implantation_station sont également harmonisées afin de regrouper les différentes variantes d'écriture. Les chaînes vides sont remplacées par des valeurs manquantes (NA) et les lignes sans coordonnées géographiques sont supprimées. Enfin, les variables booléennes sont normalisées sous la forme « True » ou « False ».
+
+```{r val}
+# Bilan des valeurs manquantes
+nb_na_par_col <- colSums(is.na(donnees))
+nb_avant <- nrow(irve)
+cat("Lignes depart :", nb_avant, "\n")
+
+bilan_na <- data.frame(
+  colonne     = names(donnees),
+  nb_na       = nb_na_par_col,
+  pourcentage = round(nb_na_par_col / nrow(donnees) * 100, 2)
+) %>% arrange(desc(pourcentage))
+
+# Suppression des colonnes avec plus de 70 % de NA
+colonnes_a_supprimer <- bilan_na$colonne[bilan_na$pourcentage > 70]
+
+if(length(colonnes_a_supprimer) > 0){
+  donnees <- donnees %>%
+    select(-all_of(colonnes_a_supprimer))
+}
+
+# Imputation de puissance_nominale par la médiane
+mediane_puissance <- median(donnees$puissance_nominale, na.rm = TRUE)
+
+donnees$puissance_nominale <- replace(
+  donnees$puissance_nominale,
+  is.na(donnees$puissance_nominale),
+  mediane_puissance
+)
+
+# Normalisation de condition_acces
+normaliser_acces <- function(x) {
+  case_when(
+    grepl("libre", tolower(iconv(x, to = "ASCII//TRANSLIT")))         ~ "Accès libre",
+    grepl("reserv|réserv", tolower(iconv(x, to = "ASCII//TRANSLIT"))) ~ "Accès réservé",
+    TRUE ~ x
+  )
+}
+donnees$condition_acces <- normaliser_acces(donnees$condition_acces)
+# Normalisation de implantation_station
+normaliser_implantation <- function(x) {
+  xn <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
+  case_when(
+    grepl("prive.*usage.*public|priv.*usage.*public", xn)     ~ "Parking privé à usage public",
+    grepl("prive.*client|priv.*client|reserv.*client", xn)    ~ "Parking privé réservé à la clientèle",
+    grepl("parking public", xn)                               ~ "Parking public",
+    grepl("voirie", xn)                                       ~ "Voirie",
+    grepl("station.*rapid|rapid.*station|dedie.*recharg", xn) ~ "Station dédiée à la recharge rapide",
+    TRUE ~ x
+  )
+}
+
+
+donnees$implantation_station <- normaliser_implantation(
+  donnees$implantation_station
+)
+
+# Chaînes vides vers NA
+donnees <- donnees %>%
+  mutate(across(where(is.character), ~na_if(., "")))
+
+# Suppression des lignes sans coordonnées
+donnees <- donnees %>%
+  filter(
+    !is.na(consolidated_longitude),
+    !is.na(consolidated_latitude)
+  )
+
+# Harmonisation des variables booléennes
+normaliser_booleens <- function(x) {
+  case_when(
+    tolower(x) %in% c("true",  "1", "oui", "yes") ~ "True",
+    tolower(x) %in% c("false", "0", "non", "no")  ~ "False",
+    TRUE ~ NA
+  )
+}
+colonnes_booleennes <- c("gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
+                         "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
+                         "prise_type_chademo", "prise_type_autre", "reservation",
+                         "cable_t2_attache", "station_deux_roues",
+                         "consolidated_is_lon_lat_correct", "consolidated_is_code_insee_verified",
+                         "consolidated_is_code_insee_modified")
+donnees <- donnees %>% mutate(across(any_of(colonnes_booleennes), normaliser_booleens))
+cat("Total lignes supprimées :", nb_avant - nrow(donnees), "\n")
+cat("Lignes finales :", nrow(donnees), "\n")
+```
+
+### Valeurs aberrantes
+
+Les bornes présentant une puissance nominale inférieure à 1 kW ou supérieure à 500 kW sont supprimées. Les puissances restantes sont ensuite rapprochées des principaux paliers standards du marché.
+
+Les coordonnées situées hors de la France métropolitaine sont exclues et les stations dont le nombre de points de charge (nbre_pdc) est inférieur à 1 ou supérieur à 100 sont retirées du jeu de données.
+
+```{r aberrantes}
+library(dplyr)
+print(paste("Lignes au départ :", nrow(donnees)))
+# Puissance hors plage [1 ; 500] kW
+donnees <- donnees %>%
+  filter(
+    puissance_nominale >= 1,
+    puissance_nominale <= 500
+  )
+print(paste("Après puissance :", nrow(donnees)))
+
+# Normalisation aux paliers standards
+paliers <- c(
+  3.7, 7.4, 11, 22, 50, 75, 100,
+  150, 175, 200, 250, 300, 350, 400
+)
+
+donnees$puissance_nominale <- sapply(
+  donnees$puissance_nominale,
+  function(x) paliers[which.min(abs(paliers - x))]
+)
+
+# Coordonnées hors France métropolitaine
+donnees <- donnees %>%
+  filter(
+    consolidated_longitude >= -5.5,
+    consolidated_longitude <= 10,
+    consolidated_latitude  >= 41,
+    consolidated_latitude  <= 51.5
+  )
+
+# Nombre de points de charge aberrant
+donnees <- donnees %>%
+  filter(
+    nbre_pdc >= 1,
+    nbre_pdc <= 100
+  )
 ```
 
 # Fonctionnalité 2
@@ -42,11 +188,26 @@ Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.
 Évolution du déploiement : Ce graphique retrace le rythme d'installation des bornes mois par mois pour visualiser les périodes d'accélération du réseau.
 
 ```{r points}
-irve <- read.csv("../../IRVE.csv",header = TRUE)
-date <- as.Date(irve$date_mise_en_service)# Permet de convertir en une date qui est représenter dans un calendrier
-annee_mois <- format(date, "%Y-%m")#Permet de mettre un format année-mois
-evolution <- table(annee_mois)# Permet de compter le nombre de mise en service par mois
-plot(evolution, type="o",col="blue", main="Évolution des mises en service",xlab="Date", ylab="Nombre de stations")
+#irve <- read.csv("IRVE.csv", header = TRUE)
+date <- as.Date(donnees$date_mise_en_service)
+annee <- format(date, "%Y")#Conversion en date et extraction de l'année
+#Comptage par année et conversion en dataframe
+evolution <- table(annee)
+df_evolution <- as.data.frame(evolution)
+colnames(df_evolution) <- c("Annee", "Nombre")
+
+#conversion en nombre et suppression des années erronées
+df_evolution$Annee <- as.numeric(as.character(df_evolution$Annee))
+df_evolution <- df_evolution[df_evolution$Annee > 2000, ]
+
+#Création du graphique (on utilise les colonnes de df_evolution)
+plot(df_evolution$Annee, 
+     df_evolution$Nombre, 
+     type = "o",  #permet d'avoir une courbe avec des points
+     col = "blue", 
+     main = "Évolution des mises en service",
+     xlab = "Année", 
+     ylab = "Nombre de stations")
 ```
 
 Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes dans la base de données et les affiche sous forme de graphique en secteurs pour visualiser leur répartition.
@@ -55,15 +216,15 @@ Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes
 library(dplyr)
 library(ggplot2)
 # 1. Préparation des données
-df <- as.data.frame(table(irve$nom_enseigne))
+df <- as.data.frame(table(donnees$nom_enseigne))
 # 2. Filtrage du top 15
 top_df <- df %>%
   arrange(desc(Freq)) %>%
   head(15)
 # 3. Création du graphique
 ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) + 
-  geom_col(width = 1, color = "white") + 
-  coord_polar(theta = "y") + 
+  geom_col(width = 1, color = "white") + #Dessine les parts (le width=1 les colle entre elles)
+  coord_polar(theta = "y") + #Transforme les barres en cercle 
   theme_void() + 
   labs(title = "Top 15 des enseignes", fill = "Enseigne")
 ```
@@ -74,19 +235,18 @@ Analyse des types de prises : Ce script convertit les variables binaires en vale
 
 ```{r histogramme}
 #force la conversion TRUE/FALSE pour les variables de type prise
-irve$prise_type_ef <- as.logical(irve$prise_type_ef)
-irve$prise_type_2 <- as.logical(irve$prise_type_2)
-irve$prise_type_combo_ccs <- as.logical(irve$prise_type_combo_ccs)
-irve$prise_type_chademo <- as.logical(irve$prise_type_chademo)
+donnees$prise_type_ef <- as.logical(donnees$prise_type_ef)
+donnees$prise_type_2 <- as.logical(donnees$prise_type_2)
+donnees$prise_type_combo_ccs <- as.logical(donnees$prise_type_combo_ccs)
+donnees$prise_type_chademo <- as.logical(donnees$prise_type_chademo)
 #on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
 donnees_prises <- c(
-  "EF" = sum(irve$prise_type_ef == TRUE, na.rm = TRUE),
-  "Type 2" = sum(irve$prise_type_2 == TRUE, na.rm = TRUE),
-  "Combo CCS" = sum(irve$prise_type_combo_ccs == TRUE, na.rm = TRUE),
-  "CHAdeMO" = sum(irve$prise_type_chademo == TRUE, na.rm = TRUE)
+  "EF" = sum(donnees$prise_type_ef == TRUE, na.rm = TRUE),
+  "Type 2" = sum(donnees$prise_type_2 == TRUE, na.rm = TRUE),
+  "Combo CCS" = sum(donnees$prise_type_combo_ccs == TRUE, na.rm = TRUE),
+  "CHAdeMO" = sum(donnees$prise_type_chademo == TRUE, na.rm = TRUE)
 )
 print(donnees_prises)
-#table<-table(irve$prise_type_ef,irve$prise_type_2, irve$prise_type_combo_ccs, irve$prise_type_chademo)
 barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
 ```
 
@@ -100,17 +260,15 @@ Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la 
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
 
-dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
+dep <- st_read("lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
 
-num_dep <- substr(irve$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
+num_dep <- substr(donnees$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
 
 
 tab_charge <- table(num_dep); tab_charge; # fournit le nombre de bornes par région
 charges <- c()
 
 for (d in dep$INSEE_DEP){
-  print(d)
-  print(unname(tab_charge[d]))
   charges <- c(charges, unname(tab_charge[d])) #uname -> permet d'avoir uniquement le nombre de bornes sans le numéro du département associé
 }
 
@@ -133,7 +291,7 @@ library(leaflet)
 library(mapedit)
 
 color <- c()
-color <- c(color,ifelse(toupper(irve$reservation) == TRUE, "red", "green"))
+color <- c(color,ifelse(toupper(donnees$reservation) == TRUE, "red", "green"))
 
 
 icons <- awesomeIcons( # créer les marqueurs 
@@ -144,7 +302,7 @@ icons <- awesomeIcons( # créer les marqueurs
 )
 
 
-map <- leaflet(irve) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% #créer la carte et met le point de vue sur la france
+map <- leaflet(donnees) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% #créer la carte et met le point de vue sur la france
   addAwesomeMarkers(lng = ~consolidated_longitude,
         lat = ~consolidated_latitude,
         icon=icons,
@@ -156,23 +314,29 @@ map;
 ```
 
 # Fonctionnalité 4
+
 ## Tableau croisé
 
 ```{r Tableau}
 
 ```
+
 ## Graphique
 
 ```{r Graphique}
 
 ```
+
 # Fonctionnalité 5
+
 ## Regression
+
+Analyse par régression : Cette méthode statistique permet de modéliser et de quantifier les relations entre les variables, facilitant ainsi la prédiction de la puissance ou du déploiement futur des bornes.
+
 ```{r Regression}
 library(rgl)
 modele1<-library(rgl)
 summary(modele1)
-plot(modele1)
 
 modele1 <- lm(puissance_nominale ~  nbre_pdc +
                 prise_type_ef + prise_type_2 + prise_type_combo_ccs +
@@ -180,12 +344,49 @@ modele1 <- lm(puissance_nominale ~  nbre_pdc +
                 paiement_acte + paiement_cb + paiement_autre +
                 reservation + station_deux_roues +
                 consolidated_longitude + consolidated_latitude,
-              data = irve)
+              data = donnees)
 summary(modele1)
 plot(modele1)
 ```
+
 ## Regression Logistique
+
 ```{r Regression Logistique}
+trie_tarif <- t[t >= 100]              # garder uniquement les valeurs ≥ 100
+trie_tarif <- sort(trie_tarif, decreasing = FALSE)   # trier par ordre croissant
+
+valeurs_a_garder <- names(trie_tarif) # garde uniquement la valeur des variables pas le nombre d'occurence
+
+filtre_tarif <- irve[irve$tarification %in% valeurs_a_garder, ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+
+#table(filtre_tarif$tarification)
+
+
+filtre_tarif_euro <- filtre_tarif[ grepl("[0-9]+ ?(€|cts)", filtre_tarif$tarification), ] #garde toute les lignes qui respecte le grep
+
+#table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- as.numeric(
+  sub(",", ".",  # transforme les , en .
+      regmatches(filtre_tarif_euro$tarification, # renvoie uniquement les parties qui satisfont l'exigence 
+                           regexpr("[0-9]+([.,][0-9]+)?(?=[[:space:]]*(€|cts))", filtre_tarif_euro$tarification,perl=TRUE)))# renvoie toute les nombres qui sont suivi d'un € ou cts, =? signifie qu'on ne renvoie pas ces symboles 
+)
+#table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- ifelse( #transforme euro en centimes
+filtre_tarif_euro$tarification > 1,
+filtre_tarif_euro$tarification / 100,
+filtre_tarif_euro$tarification
+)
+
+#table(filtre_tarif_euro$tarification)
+
+tarif_gratuit <- irve[irve$gratuit %in% "True", ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+#table(tarif_gratuit$tarification)
+tarif_gratuit$tarification <- 0; # affecte un 0 à toute les variables
+filtre_tarif_final <- rbind(filtre_tarif_euro, tarif_gratuit)
+#table(filtre_tarif_final$tarification)
 
 ```
+
 # Fonctionnalité 6
