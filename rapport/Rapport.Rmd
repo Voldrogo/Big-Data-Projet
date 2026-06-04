@@ -1,0 +1,572 @@
+---
+title: 'Projet Big Data : Étude des données IRVE'
+author: "Forner Caroline, Daoudi Rayane, Le Néchet Manon"
+date: "2026-06-01"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+# Introduction
+
+Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à analyser la base nationale des Infrastructures de Recharge pour Véhicules Électriques (IRVE). En combinant traitements statistiques et visualisations avancées, notre travail explore les dynamiques de déploiement des stations sur le territoire national. De la phase de nettoyage des données brutes à la modélisation prédictive, ce rapport détaille la méthodologie déployée pour transformer ce volume important de données en indicateurs stratégiques de mobilité durable.
+
+# Diagramme de Gantt
+
+Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.jpg)
+
+# Fonctionnalité 1
+
+## Description du jeu de données
+
+Nb lignes : 184505 -Nb colonnes : 47 colonnes -unité d'observation : une borne de recharge = 1 ligne Données issues de plusieurs opérateurs (DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via data.gouv.fr -Variable principal -Identification : id_station_itinerance, id_pdc_itinerance, nom_station -Localisation : adresse_station, consolidated_longitude, consolidated_latitude, consolidated_commune -Caractéristiques techniques : puissance_nominale, types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs, prise_type_chademo), nbre_pdc -Accès : condition_acces, gratuit, paiement_cb, horaires -Temporel : date_mise_en_service, date_maj
+
+## Statistiques descriptives univariées
+
+### Puissance nominale
+
+La puissance nominale représente la puissance maximale délivrée par une borne en kilowatts (kW). Elle conditionne directement la vitesse de recharge du véhicule.
+
+La distribution est très concentrée autour de **22 kW**, valeur standard pour les bornes AC en parking. On observe également des pics à 7 kW (résidentiel/bureau) et 50 kW+ (recharge rapide sur autoroute ou station dédiée). Les valeurs élevées (150–400 kW) représentent les bornes ultra-rapides de type Ionity ou Tesla Supercharger.
+
+```{r fig.width=8, fig.height=5}
+hist(donnees$puissance_nominale[donnees$puissance_nominale <= 150],
+     breaks = 30, col = "steelblue",
+     main   = "Distribution de la puissance nominale (≤ 150 kW)",
+     xlab   = "Puissance (kW)", ylab = "Nombre de bornes")
+```
+
+### Nombre de points de charge (PDC) par station
+
+Le nombre de PDC par station varie de 1 à plusieurs dizaines. La majorité des stations possèdent **2 PDC**, ce qui correspond aux installations standard en parking public ou voirie. Les stations avec un grand nombre de PDC (\> 20) sont généralement des aires autoroutières ou des hubs de recharge rapide.
+
+```{r fig.width=8, fig.height=5}
+barplot(table(donnees$nbre_pdc[donnees$nbre_pdc <= 20]),
+        col  = "coral",
+        main = "Nombre de PDC par station (≤ 20)",
+        xlab = "Nombre de PDC", ylab = "Nombre de stations")
+```
+
+### Type d'implantation
+
+Le type d'implantation indique le contexte physique dans lequel la borne est installée. La **voirie** représente la catégorie la plus fréquente, suivie des **parkings privés à usage public** (centres commerciaux, hôtels) et des **parkings publics**.
+
+Les dernières catégories (parking privé réservé à la clientèle) restent marginales en nombre mais sont importantes pour certains opérateurs spécialisés (LIDL, E.Leclerc).
+
+```{r fig.width=9, fig.height=6}
+par(mar = c(12, 5, 4, 2))
+barplot(sort(table(donnees$implantation_station), decreasing = TRUE),
+        col      = "darkorange", las = 2,
+        main     = "Type d'implantation",
+        ylab     = "Nombre de bornes", cex.names = 0.75)
+```
+
+### Condition d'accès
+
+La quasi-totalité des bornes sont en **accès libre** — aucune restriction physique ou d'abonnement pour y accéder. Les bornes en accès réservé sont généralement liées à des flottes d'entreprise ou des parkings privés.
+
+```{r fig.width=7, fig.height=5}
+par(mar = c(6, 5, 4, 2))
+barplot(sort(table(donnees$condition_acces), decreasing = TRUE),
+        col      = "mediumpurple", las = 2,
+        main     = "Condition d'accès",
+        ylab     = "Nombre de bornes", cex.names = 0.85)
+```
+
+### Gratuité
+
+La grande majorité des bornes sont **payantes**. Les bornes gratuites représentent une faible part, souvent associées à des collectivités locales ou des enseignes commerciales proposant la recharge comme service complémentaire.
+
+```{r fig.width=6, fig.height=5}
+barplot(table(donnees$gratuit),
+        col  = c("tomato", "seagreen"),
+        main = "Gratuité des bornes",
+        ylab = "Nombre de bornes")
+```
+
+### Types de prises
+
+```{r}
+prises <- c(
+  "EF"        = sum(donnees$prise_type_ef        == "True", na.rm = TRUE),
+  "Type 2"    = sum(donnees$prise_type_2          == "True", na.rm = TRUE),
+  "Combo CCS" = sum(donnees$prise_type_combo_ccs  == "True", na.rm = TRUE),
+  "CHAdeMO"   = sum(donnees$prise_type_chademo    == "True", na.rm = TRUE)
+)
+```
+
+Le **Type 2** est le connecteur universel des bornes AC en Europe — il est présent sur la quasi-totalité des bornes. Le **Combo CCS** (courant continu) est corrélé aux puissances ≥ 50 kW et représente les bornes de recharge rapide. Le **CHAdeMO** est un standard japonais en déclin, présent sur les anciennes Nissan Leaf et Mitsubishi. La prise **EF** (domestique) est encore présente sur certaines bornes de faible puissance.
+
+```{r fig.width=7, fig.height=5}
+barplot(prises,
+        col  = c("orange", "steelblue", "darkgreen", "red"),
+        main = "Répartition des types de prises",
+        ylab = "Nombre de bornes")
+```
+
+### Horaires
+
+La grande majorité des bornes sont accessibles **24h/24 et 7j/7** (`24/7`), ce qui reflète leur vocation de service public. Les exceptions concernent les bornes en parking d'entreprise ou de surface avec des plages horaires définies. \## Nettoyage des données
+
+### Doublons
+
+Les doublons correspondent à des lignes strictement identiques présentes plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter de la consolidation de plusieurs sources ou d'erreurs lors de l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines bornes dans les analyses, les lignes dupliquées sont supprimées en ne conservant qu'une seule occurrence de chaque enregistrement.
+
+```{r doublons}
+# Suppression des doublons exacts
+nb_avant <- nrow(donnees)
+donnees  <- donnees %>% distinct()
+
+cat("Doublons supprimés :", nb_avant - nrow(donnees),
+    "| Lignes restantes :", nrow(donnees), "\n")
+```
+
+### Valeurs manquantes
+
+Un bilan des valeurs manquantes est effectué sur l'ensemble des variables. Les colonnes comportant plus de 70 % de données manquantes sont supprimées. La variable puissance_nominale est complétée par sa médiane lorsque celle-ci est absente.
+
+Les variables condition_acces et implantation_station sont également harmonisées afin de regrouper les différentes variantes d'écriture. Les chaînes vides sont remplacées par des valeurs manquantes (NA) et les lignes sans coordonnées géographiques sont supprimées. Enfin, les variables booléennes sont normalisées sous la forme « True » ou « False ».
+
+```{r valeurs manquantes}
+
+library(dplyr)
+
+filtrer <- function(donnees, condition, message) {
+  nb_avant <- nrow(donnees)
+  donnees  <- donnees %>% filter({{ condition }})
+  cat(message, ":", nb_avant - nrow(donnees), "\n")
+  donnees
+}
+
+
+
+# 2. VALEURS MANQUANTES
+# Tableau récapitulatif des NA par colonne
+nb_na_par_col <- colSums(is.na(donnees))
+bilan_na <- data.frame(
+  colonne     = names(donnees),
+  nb_na       = nb_na_par_col,
+  pourcentage = round(nb_na_par_col / nrow(donnees) * 100, 2)
+) %>% arrange(desc(pourcentage))
+
+colonnes_avec_na <- bilan_na[bilan_na$nb_na > 0, ]
+if (nrow(colonnes_avec_na) > 0) {
+  cat("Colonnes avec NA :\n")
+  print(colonnes_avec_na, row.names = FALSE)
+} else {
+  cat("Aucune valeur manquante.\n")
+}
+
+# Supprimer les colonnes avec plus de 70% de NA
+colonnes_a_supprimer <- bilan_na$colonne[bilan_na$pourcentage > 70]
+if (length(colonnes_a_supprimer) > 0) {
+  cat("Colonnes supprimées (>70% NA) :", paste(colonnes_a_supprimer, collapse = ", "), "\n")
+  donnees <- donnees %>% select(-all_of(colonnes_a_supprimer))
+}
+
+# puissance_nominale : NA → médiane
+mediane_puissance <- median(donnees$puissance_nominale, na.rm = TRUE)
+nb_na_puissance   <- sum(is.na(donnees$puissance_nominale))
+donnees$puissance_nominale <- replace(donnees$puissance_nominale,
+                                      is.na(donnees$puissance_nominale), mediane_puissance)
+cat("puissance_nominale :", nb_na_puissance, "NA → médiane (", mediane_puissance, "kW)\n")
+
+# Normalise condition_acces : toutes les variantes → "Accès libre" ou "Accès réservé"
+# x : vecteur de chaînes (ex: "Accs libre", "AccÃ¨s libre", "Acc,s libre")
+# Retourne "Accès libre", "Accès réservé", ou la valeur d'origine si non reconnue
+normaliser_acces <- function(x) {
+  case_when(
+    grepl("libre", tolower(iconv(x, to = "ASCII//TRANSLIT")))         ~ "Accès libre",
+    grepl("reserv|réserv", tolower(iconv(x, to = "ASCII//TRANSLIT"))) ~ "Accès réservé",
+    TRUE ~ x
+  )
+}
+
+donnees$condition_acces <- normaliser_acces(donnees$condition_acces)
+cat("condition_acces normalisée → Accès libre / Accès réservé\n")
+
+# Normalise implantation_station : regroupe les variantes vers les valeurs officielles
+# x : vecteur de chaînes (ex: "Parking priv usage public", "parking privé à usage public")
+# Retourne la valeur normalisée ou la valeur d'origine si non reconnue
+normaliser_implantation <- function(x) {
+  xn <- tolower(iconv(x, to = "ASCII//TRANSLIT"))
+  case_when(
+    grepl("prive.*usage.*public|priv.*usage.*public", xn)     ~ "Parking privé à usage public",
+    grepl("prive.*client|priv.*client|reserv.*client", xn)    ~ "Parking privé réservé à la clientèle",
+    grepl("parking public", xn)                               ~ "Parking public",
+    grepl("voirie", xn)                                       ~ "Voirie",
+    grepl("station.*rapid|rapid.*station|dedie.*recharg", xn) ~ "Station dédiée à la recharge rapide",
+    TRUE ~ x
+  )
+}
+
+donnees$implantation_station <- normaliser_implantation(donnees$implantation_station)
+cat("implantation_station normalisée\n")
+
+# Chaînes vides → NA
+donnees <- donnees %>% mutate(across(where(is.character), ~na_if(., "")))
+
+# Coordonnées manquantes → supprimer la ligne
+donnees <- filtrer(donnees,
+                   !is.na(consolidated_longitude) & !is.na(consolidated_latitude),
+                   "Lignes sans coordonnées supprimées")
+
+# Normalise les valeurs booléennes texte vers "True" ou "False"
+normaliser_booleens <- function(x) {
+  case_when(
+    tolower(x) %in% c("true",  "1", "oui", "yes") ~ "True",
+    tolower(x) %in% c("false", "0", "non", "no")  ~ "False",
+    TRUE ~ x
+  )
+}
+
+colonnes_booleennes <- c("gratuit", "paiement_acte", "paiement_cb", "paiement_autre",
+                         "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
+                         "prise_type_chademo", "prise_type_autre", "reservation",
+                         "cable_t2_attache", "station_deux_roues",
+                         "consolidated_is_lon_lat_correct", "consolidated_is_code_insee_verified",
+                         "consolidated_is_code_insee_modified")
+
+donnees <- donnees %>% mutate(across(any_of(colonnes_booleennes), normaliser_booleens))
+cat("Booléens normalisés → True / False\n")
+```
+
+### Valeurs aberrantes
+
+Les bornes présentant une puissance nominale inférieure à 1 kW ou supérieure à 500 kW sont supprimées. Les puissances restantes sont ensuite rapprochées des principaux paliers standards du marché.
+
+Les coordonnées situées hors de la France métropolitaine sont exclues et les stations dont le nombre de points de charge (nbre_pdc) est inférieur à 1 ou supérieur à 100 sont retirées du jeu de données.
+
+```{r valeurs aberrantes}
+# Puissance hors plage [1 ; 500] kW
+donnees <- donnees %>%
+  filter(
+    puissance_nominale >= 1,
+    puissance_nominale <= 500
+  )
+
+# Normalisation aux paliers standards
+paliers <- c(
+  3.7, 7.4, 11, 22, 50, 75, 100,
+  150, 175, 200, 250, 300, 350, 400
+)
+
+donnees$puissance_nominale <- sapply(
+  donnees$puissance_nominale,
+  function(x) paliers[which.min(abs(paliers - x))]
+)
+
+# Coordonnées hors France métropolitaine
+donnees <- donnees %>%
+  filter(
+    consolidated_longitude >= -5.5,
+    consolidated_longitude <= 10,
+    consolidated_latitude  >= 41,
+    consolidated_latitude  <= 51.5
+  )
+
+# Nombre de points de charge aberrant
+donnees <- donnees %>%
+  filter(
+    nbre_pdc >= 1,
+    nbre_pdc <= 100
+  )
+```
+
+# Fonctionnalité 2
+
+## Représentation Graphique
+
+Évolution du déploiement : Ce graphique retrace le rythme d'installation des bornes mois par mois pour visualiser les périodes d'accélération du réseau.
+
+```{r points}
+#irve <- read.csv("IRVE.csv", header = TRUE)
+date <- as.Date(donnees$date_mise_en_service)
+annee <- format(date, "%Y")#Conversion en date et extraction de l'année
+#Comptage par année et conversion en dataframe
+evolution <- table(annee)
+df_evolution <- as.data.frame(evolution)
+colnames(df_evolution) <- c("Annee", "Nombre")
+
+#conversion en nombre et suppression des années erronées
+df_evolution$Annee <- as.numeric(as.character(df_evolution$Annee))
+df_evolution <- df_evolution[df_evolution$Annee > 2000, ]
+
+#Création du graphique (on utilise les colonnes de df_evolution)
+plot(df_evolution$Annee, 
+     df_evolution$Nombre, 
+     type = "o",  #permet d'avoir une courbe avec des points
+     col = "blue", 
+     main = "Évolution des mises en service",
+     xlab = "Année", 
+     ylab = "Nombre de stations")
+```
+
+Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes dans la base de données et les affiche sous forme de graphique en secteurs pour visualiser leur répartition.
+
+```{r camembert}
+library(dplyr)
+library(ggplot2)
+# 1. Préparation des données
+df <- as.data.frame(table(donnees$nom_enseigne))
+# 2. Filtrage du top 15
+top_df <- df %>%
+  arrange(desc(Freq)) %>%
+  head(15)
+# 3. Création du graphique
+ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) + 
+  geom_col(width = 1, color = "white") + #Dessine les parts (le width=1 les colle entre elles)
+  coord_polar(theta = "y") + #Transforme les barres en cercle 
+  theme_void() + 
+  labs(title = "Top 15 des enseignes", fill = "Enseigne")
+```
+
+## Histogramme
+
+Analyse des types de prises : Ce script convertit les variables binaires en valeurs logiques, comptabilise le nombre total de stations équipées pour chaque standard et génère un diagramme en barres comparatif.
+
+```{r histogramme}
+#force la conversion TRUE/FALSE pour les variables de type prise
+donnees$prise_type_ef <- as.logical(donnees$prise_type_ef)
+donnees$prise_type_2 <- as.logical(donnees$prise_type_2)
+donnees$prise_type_combo_ccs <- as.logical(donnees$prise_type_combo_ccs)
+donnees$prise_type_chademo <- as.logical(donnees$prise_type_chademo)
+#on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
+donnees_prises <- c(
+  "EF" = sum(donnees$prise_type_ef == TRUE, na.rm = TRUE),
+  "Type 2" = sum(donnees$prise_type_2 == TRUE, na.rm = TRUE),
+  "Combo CCS" = sum(donnees$prise_type_combo_ccs == TRUE, na.rm = TRUE),
+  "CHAdeMO" = sum(donnees$prise_type_chademo == TRUE, na.rm = TRUE)
+)
+print(donnees_prises)
+barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
+```
+
+# Fonctionnalité 3
+
+## Carte de chaleur
+
+Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la densité spatiale des stations de recharge, identifiant ainsi instantanément les zones à forte concentration et les secteurs moins équipés.
+
+```{r carte_chaleur}
+library(mapsf) #sert à afficher la carte
+library(sf) #pour tout ce qui est relatif à l'affiche de carte
+
+dep <- st_read("lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
+
+num_dep <- substr(donnees$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
+
+
+tab_charge <- table(num_dep); tab_charge; # fournit le nombre de bornes par région
+charges <- c()
+
+for (d in dep$INSEE_DEP){
+  charges <- c(charges, unname(tab_charge[d])) #uname -> permet d'avoir uniquement le nombre de bornes sans le numéro du département associé
+}
+
+dep$charge_total <- charges #ajout du nouveau paramètre à la carte
+
+mf_map(x = dep, var = "charge_total", type = "choro") # affiche la Carte choroplèthe en fonction du nombre de bornes par département
+
+```
+
+## Regroupement et coloration
+
+Regroupement (Clustering) : Cette méthode permet de segmenter les stations de recharge en groupes homogènes selon leurs caractéristiques communes, facilitant ainsi l'analyse des typologies d'infrastructures.
+
+Coloration (Mapping) : La coloration permet d'associer visuellement des indicateurs quantitatifs ou qualitatifs à chaque zone géographique, rendant les disparités territoriales immédiatement lisibles.
+
+```{r regroupement_coloration}
+# carte intéractive 
+library(mapview)
+library(leaflet)
+library(mapedit)
+
+color <- c()
+color <- c(color,ifelse(toupper(donnees$reservation) == TRUE, "red", "green"))
+
+
+icons <- awesomeIcons( # créer les marqueurs 
+  icon = 'ios-close',
+  iconColor = 'black',
+  library = 'ion',
+  markerColor = color
+)
+
+
+map <- leaflet(donnees) %>% addTiles() %>% setView(lng = 2, lat = 46, zoom = 5) %>% #créer la carte et met le point de vue sur la france
+  addAwesomeMarkers(lng = ~consolidated_longitude,
+        lat = ~consolidated_latitude,
+        icon=icons,
+        popup =  ~paste("Puissance nominale :", puissance_nominale,"<br>","horaire :", horaires,"<br>","condition d'accès :", condition_acces,"<br>","gratuité :", gratuit,"<br>","réservation :", reservation ),
+        clusterOptions = markerClusterOptions()
+  )
+
+map;
+```
+
+# Fonctionnalité 4
+
+La fonctionnalité 4 a pour objectif d'analyser les liens entre les variables du jeu de données. On distingue deux types d'analyses : les corrélations quantitatives entre variables numériques via le coefficient de Pearson, et les corrélations qualitatives entre variables catégorielles via le test du Chi². L'objectif est de déterminer quelles caractéristiques des bornes sont liées entre elles, et dans quelle mesure.
+
+## Nomalisation des données restante et chargement des données
+
+```{r Tableau}
+library(dplyr)
+library(ggplot2)
+library(forcats)
+
+# ── Chargement ───────────────────────────────────────────────
+racine <- "/Users/voldrogo/Documents/Big-Data-Projet"
+setwd(racine)
+if (!dir.exists("output")) dir.create("output")
+
+donnees <- read.csv("data/IRVE.nettoyer.csv", sep = ",", stringsAsFactors = FALSE) %>%
+  mutate(across(where(is.character), ~na_if(., ""))) %>%
+  mutate(across(where(is.character), ~na_if(., "inconnu")))
+
+cat("Données chargées :", nrow(donnees), "lignes\n")
+
+# Normalisation condition_acces et implantation_station
+donnees$condition_acces <- case_when(
+  grepl("libre",  tolower(donnees$condition_acces)) ~ "Accès libre",
+  grepl("reserv", tolower(donnees$condition_acces)) ~ "Accès réservé",
+  TRUE ~ donnees$condition_acces
+)
+
+donnees$implantation_station <- case_when(
+  grepl("usage.*public|priv.*public", tolower(donnees$implantation_station)) ~ "Parking privé à usage public",
+  grepl("client",                     tolower(donnees$implantation_station)) ~ "Parking privé réservé à la clientèle",
+  grepl("parking public",             tolower(donnees$implantation_station)) ~ "Parking public",
+  grepl("voirie",                     tolower(donnees$implantation_station)) ~ "Voirie",
+  grepl("rapid|dedie|dedi",           tolower(donnees$implantation_station)) ~ "Station dédiée à la recharge rapide",
+  TRUE ~ donnees$implantation_station
+)
+```
+
+## CORRÉLATIONS QUANTITATIVES
+
+On calcule le coefficient de Pearson entre les variables numériques — puissance, nombre de PDC, latitude et longitude. Tous les r sont proches de zéro, ce qui confirme l'absence de relation linéaire entre la localisation géographique et les caractéristiques techniques des bornes.
+
+```{r Graphique}
+setwd("/Users/voldrogo/Documents/Big-Data-Projet")
+# Calcule r de Pearson et génère un nuage de points avec droite de régression
+nuage_points <- function(data, x, y, titre, fichier) {
+  d <- data %>% filter(!is.na(.data[[x]]) & !is.na(.data[[y]]))
+  r <- round(cor(d[[x]], d[[y]], method = "pearson"), 3)
+
+  p <- ggplot(d, aes(x = .data[[x]], y = .data[[y]])) +
+    geom_jitter(alpha = 0.15, color = "#264653", size = 0.8, width = 0.5, height = 0.3) +
+    geom_smooth(method = "lm", color = "red", se = FALSE, linewidth = 1) +
+    labs(title    = titre,
+         subtitle = paste0("r = ", r, "  |  n = ", nrow(d), " bornes"),
+         x = x, y = y) +
+    theme_classic(base_size = 12)
+
+  ggsave(paste0("output/", fichier), p, width = 9, height = 6, dpi = 150)
+  cat("r =", r, "→ output/", fichier, "\n")
+}
+
+nuage_points(donnees, "nbre_pdc", "puissance_nominale",
+             "Nombre de PDC vs Puissance nominale", "F4_biv_pdc_puissance.png")
+
+nuage_points(donnees, "consolidated_latitude", "nbre_pdc",
+             "Latitude vs Nombre de PDC", "F4_biv_lat_pdc.png")
+
+nuage_points(donnees, "consolidated_latitude", "puissance_nominale",
+             "Latitude vs Puissance nominale", "F4_biv_lat_puissance.png")
+
+nuage_points(donnees, "consolidated_longitude", "nbre_pdc",
+             "Longitude vs Nombre de PDC", "F4_biv_lon_pdc.png")
+
+
+```
+
+Les coefficients de corrélation obtenus sont tous très proches de zéro (de -0,019 à 0,068). Cela indique l’absence de relation linéaire notable entre la localisation géographique, la puissance des bornes et le nombre de points de charge. Ces variables semblent donc évoluer de manière largement indépendante.
+
+## CORRÉLATIONS QUALITATIVES — Chi2 + Mosaicplot
+
+Pour les variables qualitatives, on utilise le test du Chi² qui mesure si deux variables sont indépendantes ou non. Une p-value inférieure à 0.05 indique une liaison significative. Ici tous nos tests sont significatifs — notamment l'implantation avec la prise Combo CCS, ce qui confirme que les stations dédiées à la recharge rapide concentrent effectivement les bornes DC haute puissance.
+
+```{r Regression}
+setwd("/Users/voldrogo/Documents/Big-Data-Projet")
+# Test Chi2 + mosaicplot
+# top_n : nombre de modalités max à afficher (les autres → "Other")
+test_chi2_mosaic <- function(data, var1, var2, titre, fichier, top_n = 6) {
+  d <- data %>%
+    filter(!is.na(.data[[var1]]) & !is.na(.data[[var2]])) %>%
+    mutate(
+      v1 = fct_lump_n(.data[[var1]], top_n),
+      v2 = fct_lump_n(.data[[var2]], top_n)
+    )
+
+  tbl <- table(d$v1, d$v2)
+  chi <- chisq.test(tbl, simulate.p.value = TRUE, B = 2000)
+  cat("\n──", titre, "──\n")
+  cat("Chi2 =", round(chi$statistic, 2), "| p-value =", format(chi$p.value, digits = 4))
+  if (chi$p.value < 0.05) cat("  → liaison significative ✓\n") else cat("  → pas de liaison\n")
+
+  png(paste0("output/", fichier), width = 1400, height = 1000, res = 130)
+  par(mar = c(14, 4, 6, 2))
+  mosaicplot(tbl,
+             main     = paste0(titre, "\n(Chi2=", round(chi$statistic,1), ", p=", round(chi$p.value,4), ")"),
+             color    = TRUE,
+             las      = 2,
+             cex.axis = 0.75)
+  dev.off()
+  cat("→ output/", fichier, "\n")
+}
+
+# Implantation ↔ Condition d'accès
+test_chi2_mosaic(donnees, "implantation_station", "condition_acces",
+                 "Implantation ↔ Condition d'accès",
+                 "F4_chi2_implantation_acces.png")
+
+# Implantation ↔ Prise Combo CCS
+test_chi2_mosaic(donnees, "implantation_station", "prise_type_combo_ccs",
+                 "Implantation ↔ Prise Combo CCS",
+                 "F4_chi2_implantation_ccs.png")
+
+# Condition d'accès ↔ Gratuit
+test_chi2_mosaic(donnees, "condition_acces", "gratuit",
+                 "Condition d'accès ↔ Gratuit",
+                 "F4_chi2_acces_gratuit.png")
+
+# Opérateur ↔ Condition d'accès
+test_chi2_mosaic(donnees, "nom_operateur", "condition_acces",
+                 "Opérateur ↔ Condition d'accès",
+                 "F4_chi2_operateur_acces.png")
+
+```
+
+Les tests révèlent des associations significatives entre toutes les variables étudiées. Les relations les plus marquées concernent l’implantation, qui est fortement liée à la présence d’une prise Combo CCS et aux conditions d’accès. L’opérateur influence également les modalités d’accès, tandis que le lien entre condition d’accès et gratuité est significatif mais semble plus faible.
+
+# Fonctionnalité 5
+
+## Regression
+
+Analyse par régression : Cette méthode statistique permet de modéliser et de quantifier les relations entre les variables, facilitant ainsi la prédiction de la puissance ou du déploiement futur des bornes.
+
+```{r Regression}
+library(rgl)
+modele1<-library(rgl)
+summary(modele1)
+
+modele1 <- lm(puissance_nominale ~  nbre_pdc +
+                prise_type_ef + prise_type_2 + prise_type_combo_ccs +
+                prise_type_chademo + prise_type_autre + gratuit +
+                paiement_acte + paiement_cb + paiement_autre +
+                reservation + station_deux_roues +
+                consolidated_longitude + consolidated_latitude,
+              data = donnees)
+summary(modele1)
+plot(modele1)
+```
+
+## Regression Logistique
+
+```{r Regression Logistique}
+
+```
+
+# Fonctionnalité 6
