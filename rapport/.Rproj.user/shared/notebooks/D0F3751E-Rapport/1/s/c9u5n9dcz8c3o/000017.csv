@@ -1,0 +1,7 @@
+"0","paliers_bas  <- paliers[paliers <= 150]   # pour le premier hist"
+"0","paliers_haut <- paliers[paliers >= 150]"
+"0",""
+"0","h <- hist(donnees$puissance_nominale[donnees$puissance_nominale <= 150],"
+"0","     breaks = 30, col = ""steelblue"","
+"0","     main   = ""Distribution de la puissance nominale (≤ 150 kW)"","
+"0","     xlab   = ""Puissance (kW)"", ylab = ""Nombre de bornes"")"

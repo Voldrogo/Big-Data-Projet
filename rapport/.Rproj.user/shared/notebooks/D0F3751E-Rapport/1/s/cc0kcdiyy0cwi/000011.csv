@@ -1,0 +1,4 @@
+"0","barplot(table(donnees$gratuit),"
+"0","        col  = c(""tomato"", ""seagreen""),"
+"0","        main = ""Gratuité des bornes"","
+"0","        ylab = ""Nombre de bornes"")"

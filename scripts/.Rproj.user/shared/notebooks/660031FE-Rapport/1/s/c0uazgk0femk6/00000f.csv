@@ -1,0 +1,6 @@
+"0","prises <- c("
+"0","  ""EF""        = sum(donnees$prise_type_ef        == ""True"", na.rm = TRUE),"
+"0","  ""Type 2""    = sum(donnees$prise_type_2          == ""True"", na.rm = TRUE),"
+"0","  ""Combo CCS"" = sum(donnees$prise_type_combo_ccs  == ""True"", na.rm = TRUE),"
+"0","  ""CHAdeMO""   = sum(donnees$prise_type_chademo    == ""True"", na.rm = TRUE)"
+"0",")"

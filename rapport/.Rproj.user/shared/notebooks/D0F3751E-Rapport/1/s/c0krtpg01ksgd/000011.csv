@@ -1,0 +1,4 @@
+"0","barplot(table(donnees$nbre_pdc[donnees$nbre_pdc <= 20]),"
+"0","        col  = ""coral"","
+"0","        main = ""Nombre de PDC par station (≤ 20)"","
+"0","        xlab = ""Nombre de PDC"", ylab = ""Nombre de stations"")"

@@ -1,0 +1,4 @@
+"0","h <- hist(donnees$puissance_nominale[donnees$puissance_nominale >= 150],"
+"0","     breaks = 20, col = ""steelblue"","
+"0","     main   = ""Distribution de la puissance nominale (≥ 150 kW)"","
+"0","     xlab   = ""Puissance (kW)"", ylab = ""Nombre de bornes"")"

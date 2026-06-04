@@ -1,0 +1,5 @@
+"0","par(mar = c(12, 5, 4, 2))"
+"0","barplot(sort(table(donnees$implantation_station), decreasing = TRUE),"
+"0","        col      = ""darkorange"", las = 2,"
+"0","        main     = ""Type d'implantation"","
+"0","        ylab     = ""Nombre de bornes"", cex.names = 0.75)"

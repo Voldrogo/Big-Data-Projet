@@ -1,0 +1,26 @@
+{
+    "id": "6ED2336C",
+    "path": "~/Cours/Projet/voiture_electrique/Big-Data-Projet/scripts/F5_predictions.R",
+    "project_path": null,
+    "type": "r_source",
+    "hash": "0",
+    "contents": "",
+    "dirty": true,
+    "created": 1780584032891.0,
+    "source_on_save": false,
+    "relative_order": 2,
+    "properties": {
+        "source_window_id": "",
+        "Source": "Source",
+        "cursorPosition": "191,3",
+        "scrollLine": "183"
+    },
+    "folds": "",
+    "lastKnownWriteTime": 1780593705,
+    "encoding": "UTF-8",
+    "collab_server": "",
+    "source_window": "",
+    "last_content_update": 1780594374070,
+    "read_only": false,
+    "read_only_alternatives": []
+}

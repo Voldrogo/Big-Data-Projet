@@ -1,0 +1,4 @@
+"0","barplot(prises,"
+"0","        col  = c(""orange"", ""steelblue"", ""darkgreen"", ""red""),"
+"0","        main = ""Répartition des types de prises"","
+"0","        ylab = ""Nombre de bornes"")"
