@@ -1,6 +1,6 @@
 #Regression Lineaire
 ################################################################"
-irve <- read.csv("../IRVE2.csv",header = TRUE)
+irve <- read.csv("../../IRVE2.csv",header = TRUE)
 library(rgl)
 modele1<-library(rgl)
 modele1<-lm(puissance_nominale ~ toupper(gratuit)+toupper(paiement_acte)+toupper(reservation), data=irve)
@@ -18,7 +18,6 @@ summary(modele1)
 plot(modele1)
 
 
-
 str(irve)
 table(irve$tarification)
 
@@ -26,3 +25,46 @@ table(irve$tarification)
 ###################################################################
 #Regression logistique
 predict.glm(model,data.frame(X1=1.25),type="response")
+
+
+
+irve <- read.csv("../../IRVE2.csv",header = TRUE)
+
+t <- table(irve$tarification)
+
+trie_tarif <- t[t >= 100]              # garder uniquement les valeurs ≥ 100
+trie_tarif <- sort(trie_tarif, decreasing = FALSE)   # trier par ordre croissant
+
+valeurs_a_garder <- names(trie_tarif) # garde uniquement la valeur des variables pas le nombre d'occurence
+
+filtre_tarif <- irve[irve$tarification %in% valeurs_a_garder, ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+
+table(filtre_tarif$tarification)
+
+
+filtre_tarif_euro <- filtre_tarif[ grepl("[0-9]+ ?(€|cts)", filtre_tarif$tarification), ] #garde toute les lignes qui respecte le grep
+
+table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- as.numeric(
+  sub(",", ".",  # transforme les , en .
+      regmatches(filtre_tarif_euro$tarification, # renvoie uniquement les lignes qui satisfont l'exigence 
+                           regexpr("[0-9]+([.,][0-9]+)?(?=[[:space:]]*(€|cts))", filtre_tarif_euro$tarification,perl=TRUE)))# renvoie toute les nombres qui sont suivi d'un € ou cts, =? signifie qu'on ne les renvoie pas  
+)
+table(filtre_tarif_euro$tarification)
+
+filtre_tarif_euro$tarification <- ifelse(
+filtre_tarif_euro$tarification > 1,
+filtre_tarif_euro$tarification / 100,
+filtre_tarif_euro$tarification
+)
+
+table(filtre_tarif_euro$tarification)
+
+tarif_gratuit <- irve[irve$gratuit %in% "True", ] # garde uniquement les lignes avec les variables de tarifications stockés dans valeurs_a_garder
+table(tarif_gratuit$tarification)
+tarif_gratui$tarification <- 0;
+filtre_tarif_final <- rbind(filtre_tarif_euro, tarif_gratuit)
+table(irve$gratuit)
+
+

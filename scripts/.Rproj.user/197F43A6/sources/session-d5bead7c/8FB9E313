@@ -1,26 +1,26 @@
 {
-    "id": "BCFD132A",
-    "path": "~/Cours/Projet/voiture_electrique/Big-Data-Projet/scripts/F1_exploration.R",
-    "project_path": "F1_exploration.R",
+    "id": "8FB9E313",
+    "path": "~/Cours/Projet/voiture_electrique/Big-Data-Projet/scripts/F5_predictions.R",
+    "project_path": "F5_predictions.R",
     "type": "r_source",
     "hash": "0",
     "contents": "",
     "dirty": true,
-    "created": 1780477464457.0,
+    "created": 1780475352629.0,
     "source_on_save": false,
     "relative_order": 6,
     "properties": {
         "source_window_id": "",
         "Source": "Source",
-        "cursorPosition": "145,16",
-        "scrollLine": "124"
+        "cursorPosition": "31,0",
+        "scrollLine": "24"
     },
     "folds": "",
-    "lastKnownWriteTime": 1780478682,
+    "lastKnownWriteTime": 1780557859,
     "encoding": "UTF-8",
     "collab_server": "",
     "source_window": "",
-    "last_content_update": 1780479228017,
+    "last_content_update": 1780558276028,
     "read_only": false,
     "read_only_alternatives": []
 }
