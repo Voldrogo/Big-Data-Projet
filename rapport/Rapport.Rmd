@@ -593,6 +593,7 @@ nuage_points(donnees, "consolidated_longitude", "nbre_pdc",
 
 
 
+
 ```
 ![F4_biv_pdc_puissance](output/F4_biv_pdc_puissance.png)
 ![F4_biv_pdc_puissance](output/F4_biv_lat_pdc.png)
@@ -653,6 +654,17 @@ test_chi2_mosaic(donnees, "condition_acces", "gratuit",
 test_chi2_mosaic(donnees, "nom_operateur", "condition_acces",
                  "Opérateur ↔ Condition d'accès",
                  "F4_chi2_operateur_acces.png")
+
+# Implantation ↔ nb PDC
+test_chi2_mosaic(donnees, "nbre_pdc", "implantation_station",
+                 "Implantation ↔ nombre de pdc",
+                 "F4_chi2_implantation_pdc.png")
+
+
+#  puissance nominale ↔ Implantation
+test_chi2_mosaic(donnees, "puissance_nominale", "implantation_station",
+                 "Implantation ↔ puissance nominale",
+                 "F4_chi2_implantation_puissance.png")
 
 ```
 
