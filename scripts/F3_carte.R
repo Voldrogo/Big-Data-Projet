@@ -5,7 +5,9 @@ library(sf) #pour tout ce qui est relatif à l'affiche de carte
 
 dep <- st_read("../data/lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
 
-num_dep <- substr(irve$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
+irve_filtre <- irve[irve$prise_type_combo_ccs == TRUE, ]
+
+num_dep <- substr(irve_filtre$code_insee_commune, 1, 2) # récupère les deux premières lettres du code INSEE
 
 
 tab_charge <- table(num_dep); tab_charge; # fournit le nombre de bornes par région
@@ -20,6 +22,7 @@ for (d in dep$INSEE_DEP){
 dep$charge_total <- charges #ajout du nouveau paramètre à la carte
 
 mf_map(x = dep, var = "charge_total", type = "choro") # affiche la Carte choroplèthe en fonction du nombre de bornes par département
+mf_title("nombre de bornes en fonction du département")
 
 
 # carte intéractive 

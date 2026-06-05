@@ -186,3 +186,121 @@ as.data.frame(cm$table) %>%
 
 table(irve$nom_enseigne)
 
+
+#
+tab <- table(irve$puissance_nominale, irve$condition_acces)
+tab
+
+tab <- table(irve$puissance_nominale, irve$implantation_station)
+tab
+
+tab <- table(irve$puissance_nominale, irve$implantation_station)
+
+
+
+#force la conversion TRUE/FALSE pour les variables de type prise
+donnees$prise_type_ef <- as.logical(donnees$prise_type_ef)
+donnees$prise_type_2 <- as.logical(donnees$prise_type_2)
+donnees$prise_type_combo_ccs <- as.logical(donnees$prise_type_combo_ccs)
+donnees$prise_type_chademo <- as.logical(donnees$prise_type_chademo)
+#on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
+donnees_prises <- c(
+  "EF" = sum(donnees$prise_type_ef == TRUE, na.rm = TRUE),
+  "Type 2" = sum(donnees$prise_type_2 == TRUE, na.rm = TRUE),
+  "Combo CCS" = sum(donnees$prise_type_combo_ccs == TRUE, na.rm = TRUE),
+  "CHAdeMO" = sum(donnees$prise_type_chademo == TRUE, na.rm = TRUE)
+)
+print(donnees_prises)
+barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
+
+
+
+# Tableau croisé TRUE/FALSE x variable num
+tableau <- table(donnees$nbre_pdc, donnees$prise_type_ef)
+
+barplot(
+  t(tableau),                  # on transpose pour avoir TRUE/FALSE en couches
+  beside = FALSE,              # empilé (TRUE pour barres côte à côte)
+  main = "Prise EF selon le nombre de points de charge",
+  xlab = "Nombre de points de charge",
+  ylab = "Nombre de stations",
+  col = c("lightgrey", "red"),
+  legend.text = c("Sans EF", "Avec EF")
+)
+
+
+
+
+
+
+
+donnees_prises <- tapply( #tapply() regroupe les lignes qui ont le même valeur de prise (TRUE/FALSE) et de puissance
+  donnees$prise_type_ef,       
+  donnees$puissance_nominale,           
+  sum, na.rm = TRUE            # on somme les TRUE
+)
+
+barplot(donnees_prises, main="prise EF en fonction de sa puissance", xlab="puissance nominale", ylab="Nombre de prises", col="red")
++
+
+
+
+variables <- c("prise_type_ef", "prise_type_combo_ccs", "prise_type_2", "prise_type_chademo", "rise_type_autre")
+irve$prise_type_chademo
+
+maj_var <- c()     
+ecart <- c()      
+
+for (d in dep$INSEE_DEP) {
+  
+  irve_dep <- irve[substr(irve$code_insee_commune, 1, 2) == d, ]
+  
+  counts <- sapply(variables, function(v) sum(irve_dep[[v]] == TRUE, na.rm = TRUE))# Compte les TRUE pour chaque variable / sapply function() : créer une fonction et l'applique à chaque éléments de variable
+
+  maj_var <- c(maj_var, names(which.max(counts))) # Trouve la majoritaire
+
+  
+  counts_sorted <- sort(counts, decreasing = TRUE)
+  ecart <- c(ecart, counts_sorted[1] - counts_sorted[2]) # Calcule l'écart entre la 1ère et la 2ème
+
+}
+
+dep$variable_maj <- maj_var
+dep$ecart <- ecart
+
+
+# Carte 1 : variable majoritaire
+mf_map(x = dep, var = "variable_maj", type = "typo")
+mf_title("Variable majoritaire par département")
+
+# Carte 2 : écart
+mf_map(x = dep, var = "ecart", type = "choro")
+mf_title("Écart entre 1ère et 2ème prise")
+
+  
+
+
+
+  
+donnees <- read.csv("../../IRVE2.csv", header = TRUE)
+donnee_filtre <- donnee[donnee$prise_type_ef == TRUE, ]
+date <- as.Date(donnees_filtre$date_mise_en_service)
+annee <- format(date, "%Y")#Conversion en date et extraction de l'année
+
+#Comptage par année et conversion en dataframe
+evolution <- table(annee)
+df_evolution <- as.data.frame(evolution)
+colnames(df_evolution) <- c("Annee", "Nombre")
+
+#conversion en nombre et suppression des années erronées
+df_evolution$Annee <- as.numeric(as.character(df_evolution$Annee))
+df_evolution <- df_evolution[df_evolution$Annee > 2000, ]
+
+#Création du graphique (on utilise les colonnes de df_evolution)
+plot(df_evolution$Annee, 
+     df_evolution$Nombre, 
+     type = "o",  #permet d'avoir une courbe avec des points
+     col = "blue", 
+     main = "Évolution des mises en service",
+     xlab = "Année", 
+     ylab = "Nombre de stations")

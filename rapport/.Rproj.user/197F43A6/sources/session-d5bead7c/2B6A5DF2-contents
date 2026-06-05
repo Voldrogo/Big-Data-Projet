@@ -269,13 +269,23 @@ prises <- c(
 )
 ```
 
-Le **Type 2** est le connecteur universel des bornes AC en Europe — il est présent sur la quasi-totalité des bornes. Le **Combo CCS** (courant continu) est corrélé aux puissances ≥ 50 kW et représente les bornes de recharge rapide. Le **CHAdeMO** est un standard japonais en déclin, présent sur les anciennes Nissan Leaf et Mitsubishi. La prise **EF** (domestique) est encore présente sur certaines bornes de faible puissance.
+Le **Type 2** est le connecteur universel des bornes AC en Europe — il est présent sur la quasi-totalité des bornes. Le **Combo CCS** (courant continu) est corrélé aux puissances ≥ 50 kW et représente les bornes de recharge rapide. Le **CHAdeMO** est un standard japonais en déclin, présent sur les anciennes Nissan Leaf et Mitsubishi. La prise **EF** (domestique) est encore présente sur certaines bornes de faible puissance. 
 
 ```{r fig.width=7, fig.height=5}
-barplot(prises,
-        col  = c("orange", "steelblue", "darkgreen", "red"),
-        main = "Répartition des types de prises",
-        ylab = "Nombre de bornes")
+#force la conversion TRUE/FALSE pour les variables de type prise
+donnees$prise_type_ef <- as.logical(donnees$prise_type_ef)
+donnees$prise_type_2 <- as.logical(donnees$prise_type_2)
+donnees$prise_type_combo_ccs <- as.logical(donnees$prise_type_combo_ccs)
+donnees$prise_type_chademo <- as.logical(donnees$prise_type_chademo)
+#on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
+donnees_prises <- c(
+  "EF" = sum(donnees$prise_type_ef == TRUE, na.rm = TRUE),
+  "Type 2" = sum(donnees$prise_type_2 == TRUE, na.rm = TRUE),
+  "Combo CCS" = sum(donnees$prise_type_combo_ccs == TRUE, na.rm = TRUE),
+  "CHAdeMO" = sum(donnees$prise_type_chademo == TRUE, na.rm = TRUE)
+)
+#print(donnees_prises)
+barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col  = c("orange", "steelblue", "darkgreen", "red"))
 ```
 
 ### Horaires
@@ -335,20 +345,26 @@ ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) +
 Analyse des types de prises : Ce script convertit les variables binaires en valeurs logiques, comptabilise le nombre total de stations équipées pour chaque standard et génère un diagramme en barres comparatif.
 
 ```{r histogramme}
-#force la conversion TRUE/FALSE pour les variables de type prise
-donnees$prise_type_ef <- as.logical(donnees$prise_type_ef)
-donnees$prise_type_2 <- as.logical(donnees$prise_type_2)
-donnees$prise_type_combo_ccs <- as.logical(donnees$prise_type_combo_ccs)
-donnees$prise_type_chademo <- as.logical(donnees$prise_type_chademo)
-#on somme les valeurs TRUE pour chaque type de prise pour obtenir le nombre de stations qui ont ce type de prise et on les met dans un vecteur
-donnees_prises <- c(
-  "EF" = sum(donnees$prise_type_ef == TRUE, na.rm = TRUE),
-  "Type 2" = sum(donnees$prise_type_2 == TRUE, na.rm = TRUE),
-  "Combo CCS" = sum(donnees$prise_type_combo_ccs == TRUE, na.rm = TRUE),
-  "CHAdeMO" = sum(donnees$prise_type_chademo == TRUE, na.rm = TRUE)
+
+#Barplot de la prise EF en fonction de sa puissance nominale
+donnees_prises <- tapply( #tapply() regroupe les lignes qui ont le même valeur de prise (TRUE/FALSE) et de puissance
+  donnees$prise_type_ef,       
+  donnees$puissance_nominale,           
+  sum, na.rm = TRUE            # on somme les TRUE
 )
-print(donnees_prises)
-barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de prise", ylab="Nombre de stations", col="red")
+
+barplot(donnees_prises, main="prise EF en fonction de sa puissance", xlab="puissance nominale", ylab="Nombre de prises", col="red")
+
+
+
+#Barplot de la prise  combo CSS en fonction de sa puissance nominale
+donnees_prises <- tapply( #tapply() regroupe les lignes qui ont le même valeur de prise (TRUE/FALSE) et de puissance
+  donnees$prise_type_combo_ccs,       
+  donnees$puissance_nominale,           
+  sum, na.rm = TRUE            # on somme les TRUE
+)
+
+barplot(donnees_prises, main="prise combo CCS en fonction de sa puissance", xlab="puissance nominale", ylab="Nombre de prises", col="yellow")
 ```
 
 # Fonctionnalité 3
@@ -360,6 +376,8 @@ Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la 
 ```{r carte_chaleur}
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
+
+#1er carte
 
 dep <- st_read("lot46.gpkg", layer = "departement", quiet = TRUE) #Lit le fichier qui contient les données de la carte
 
@@ -376,6 +394,43 @@ for (d in dep$INSEE_DEP){
 dep$charge_total <- charges #ajout du nouveau paramètre à la carte
 
 mf_map(x = dep, var = "charge_total", type = "choro") # affiche la Carte choroplèthe en fonction du nombre de bornes par département
+mf_title("densité des bornes")
+
+
+
+
+variables <- c("prise_type_ef", "prise_type_combo_ccs", "prise_type_2", "prise_type_chademo", "rise_type_autre")
+irve$prise_type_chademo
+
+maj_var <- c()     
+ecart <- c()      
+
+for (d in dep$INSEE_DEP) {
+  
+  irve_dep <- irve[substr(irve$code_insee_commune, 1, 2) == d, ]
+  
+  counts <- sapply(variables, function(v) sum(irve_dep[[v]] == TRUE, na.rm = TRUE))# Compte les TRUE pour chaque variable / sapply function() : créer une fonction et l'applique à chaque éléments de variable
+
+  maj_var <- c(maj_var, names(which.max(counts))) # Trouve la majoritaire
+
+  
+  counts_sorted <- sort(counts, decreasing = TRUE)
+  ecart <- c(ecart, counts_sorted[1] - counts_sorted[2]) # Calcule l'écart entre la 1ère et la 2ème
+
+}
+
+dep$variable_maj <- maj_var
+dep$ecart <- ecart
+
+
+# Carte 2 : variable majoritaire
+mf_map(x = dep, var = "variable_maj", type = "typo")
+mf_title("Variable majoritaire par département")
+
+# Carte 3 : écart
+mf_map(x = dep, var = "ecart", type = "choro")
+mf_title("Écart entre 1ère et 2ème type de prise")
+
 
 ```
 
