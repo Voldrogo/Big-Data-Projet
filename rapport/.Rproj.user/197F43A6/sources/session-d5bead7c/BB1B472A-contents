@@ -1,4 +1,4 @@
-irve <- read.csv("../../IRVE.csv",header = TRUE);
+irve <- read.csv("../../IRVE2.csv",header = TRUE);
 
 library(mapsf) #sert à afficher la carte
 library(sf) #pour tout ce qui est relatif à l'affiche de carte
@@ -23,6 +23,40 @@ dep$charge_total <- charges #ajout du nouveau paramètre à la carte
 
 mf_map(x = dep, var = "charge_total", type = "choro") # affiche la Carte choroplèthe en fonction du nombre de bornes par département
 mf_title("nombre de bornes en fonction du département")
+
+
+
+
+variables <- c("prise_type_ef", "prise_type_combo_ccs", "prise_type_2", "prise_type_chademo", "prise_type_autre")
+
+maj_var <- c()     
+ecart <- c()      
+
+for (d in dep$INSEE_DEP) {
+  
+  irve_dep <- donnees[substr(donnees$code_insee_commune, 1, 2) == d, ]
+  
+  counts <- sapply(variables, function(v) sum(irve_dep[[v]] == TRUE, na.rm = TRUE))# Compte les TRUE pour chaque variable / sapply function() : créer une fonction et l'applique à chaque éléments de variable
+  
+  maj_var <- c(maj_var, names(which.max(counts))) # Trouve la majoritaire
+  
+  
+  counts_sorted <- sort(counts, decreasing = TRUE)
+  ecart <- c(ecart, counts_sorted[1] - counts_sorted[2]) # Calcule l'écart entre la 1ère et la 2ème
+  
+}
+
+dep$variable_maj <- maj_var
+dep$ecart <- ecart
+
+
+# Carte 2 : variable majoritaire
+mf_map(x = dep, var = "variable_maj", type = "typo")
+mf_title("type de prise majoritaire par département")
+
+# Carte 3 : écart
+mf_map(x = dep, var = "ecart", type = "choro")
+mf_title("Écart la prise type 2 et combo css")
 
 
 # carte intéractive 

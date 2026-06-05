@@ -1,0 +1,3 @@
+"0",""
+"0","# Carte 3 : écart"
+"0","mf_map(x = dep, var = ""ecart"", type = ""choro"")"

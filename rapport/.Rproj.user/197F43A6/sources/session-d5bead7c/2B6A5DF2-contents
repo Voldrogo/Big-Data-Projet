@@ -5,28 +5,52 @@ date: "2026-06-01"
 output:
   html_document: default
   pdf_document: default
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
 
 # Introduction
 
-Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à analyser la base nationale des Infrastructures de Recharge pour Véhicules Électriques (IRVE). En combinant traitements statistiques et visualisations avancées, notre travail explore les dynamiques de déploiement des stations sur le territoire national. De la phase de nettoyage des données brutes à la modélisation prédictive, ce rapport détaille la méthodologie déployée pour transformer ce volume important de données en indicateurs stratégiques de mobilité durable.
+Ce projet, réalisé dans le cadre du module Big Data FISE3, vise à
+analyser la base nationale des Infrastructures de Recharge pour
+Véhicules Électriques (IRVE). En combinant traitements statistiques et
+visualisations avancées, notre travail explore les dynamiques de
+déploiement des stations sur le territoire national. De la phase de
+nettoyage des données brutes à la modélisation prédictive, ce rapport
+détaille la méthodologie déployée pour transformer ce volume important
+de données en indicateurs stratégiques de mobilité durable.
 
 # Diagramme de Gantt
 
-Voici mon diagramme de projet : ![Diagramme de Gantt](assets/diagramme_de_gantt.jpg)
+Voici mon diagramme de projet : ![Diagramme de
+Gantt](assets/diagramme_de_gantt.jpg)
 
 # Fonctionnalité 1
 
 ## Description du jeu de données
 
-Nb lignes : 184505 -Nb colonnes : 47 colonnes -unité d'observation : une borne de recharge = 1 ligne Données issues de plusieurs opérateurs (DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via data.gouv.fr -Variable principal -Identification : id_station_itinerance, id_pdc_itinerance, nom_station -Localisation : adresse_station, consolidated_longitude, consolidated_latitude, consolidated_commune -Caractéristiques techniques : puissance_nominale, types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs, prise_type_chademo), nbre_pdc -Accès : condition_acces, gratuit, paiement_cb, horaires -Temporel : date_mise_en_service, date_maj
-
+Nb lignes : 184505 -Nb colonnes : 47 colonnes -unité d'observation : une
+borne de recharge = 1 ligne Données issues de plusieurs opérateurs
+(DRIVECO, SOLVEO, Zunder, Nexteneo, R3, Acelec, etc.) agrégées via
+data.gouv.fr -Variable principal -Identification :
+id_station_itinerance, id_pdc_itinerance, nom_station -Localisation :
+adresse_station, consolidated_longitude, consolidated_latitude,
+consolidated_commune -Caractéristiques techniques : puissance_nominale,
+types de prises (prise_type_ef, prise_type_2, prise_type_combo_ccs,
+prise_type_chademo), nbre_pdc -Accès : condition_acces, gratuit,
+paiement_cb, horaires -Temporel : date_mise_en_service, date_maj
 
 ## Nettoyage des données
 
 ### Doublons
 
-Les doublons correspondent à des lignes strictement identiques présentes plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter de la consolidation de plusieurs sources ou d'erreurs lors de l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines bornes dans les analyses, les lignes dupliquées sont supprimées en ne conservant qu'une seule occurrence de chaque enregistrement.
+Les doublons correspondent à des lignes strictement identiques présentes
+plusieurs fois dans le jeu de données. Ces répétitions peuvent résulter
+de la consolidation de plusieurs sources ou d'erreurs lors de
+l'agrégation des fichiers. Afin d'éviter de surreprésenter certaines
+bornes dans les analyses, les lignes dupliquées sont supprimées en ne
+conservant qu'une seule occurrence de chaque enregistrement.
 
 ```{r doublons}
 # Suppression des doublons exacts
@@ -41,9 +65,17 @@ cat("Doublons supprimés :", nb_avant - nrow(donnees),
 
 ### Valeurs manquantes
 
-Un bilan des valeurs manquantes est effectué sur l'ensemble des variables. Les colonnes comportant plus de 70 % de données manquantes sont supprimées. La variable puissance_nominale est complétée par sa médiane lorsque celle-ci est absente.
+Un bilan des valeurs manquantes est effectué sur l'ensemble des
+variables. Les colonnes comportant plus de 70 % de données manquantes
+sont supprimées. La variable puissance_nominale est complétée par sa
+médiane lorsque celle-ci est absente.
 
-Les variables condition_acces et implantation_station sont également harmonisées afin de regrouper les différentes variantes d'écriture. Les chaînes vides sont remplacées par des valeurs manquantes (NA) et les lignes sans coordonnées géographiques sont supprimées. Enfin, les variables booléennes sont normalisées sous la forme « True » ou « False ».
+Les variables condition_acces et implantation_station sont également
+harmonisées afin de regrouper les différentes variantes d'écriture. Les
+chaînes vides sont remplacées par des valeurs manquantes (NA) et les
+lignes sans coordonnées géographiques sont supprimées. Enfin, les
+variables booléennes sont normalisées sous la forme « True » ou « False
+».
 
 ```{r val}
 # Bilan des valeurs manquantes
@@ -129,9 +161,13 @@ donnees <- donnees %>% mutate(across(any_of(colonnes_booleennes), normaliser_boo
 
 ### Valeurs aberrantes
 
-Les bornes présentant une puissance nominale inférieure à 1 kW ou supérieure à 500 kW sont supprimées. Les puissances restantes sont ensuite rapprochées des principaux paliers standards du marché.
+Les bornes présentant une puissance nominale inférieure à 1 kW ou
+supérieure à 500 kW sont supprimées. Les puissances restantes sont
+ensuite rapprochées des principaux paliers standards du marché.
 
-Les coordonnées situées hors de la France métropolitaine sont exclues et les stations dont le nombre de points de charge (nbre_pdc) est inférieur à 1 ou supérieur à 100 sont retirées du jeu de données.
+Les coordonnées situées hors de la France métropolitaine sont exclues et
+les stations dont le nombre de points de charge (nbre_pdc) est inférieur
+à 1 ou supérieur à 100 sont retirées du jeu de données.
 
 ```{r aberrantes}
 library(dplyr)
@@ -172,13 +208,19 @@ donnees <- donnees %>%
   )
 print(paste("Lignes à l'arrivée :", nrow(donnees)))
 ```
+
 ## Statistiques descriptives univariées
 
 ### Puissance nominale
 
-La puissance nominale représente la puissance maximale délivrée par une borne en kilowatts (kW). Elle conditionne directement la vitesse de recharge du véhicule.
+La puissance nominale représente la puissance maximale délivrée par une
+borne en kilowatts (kW). Elle conditionne directement la vitesse de
+recharge du véhicule.
 
-La distribution est très concentrée autour de **22 kW**, valeur standard pour les bornes AC en parking. On observe également des pics à 7 kW (résidentiel/bureau) et 50 kW+ (recharge rapide sur autoroute ou station dédiée). Les valeurs élevées (150–400 kW) représentent les bornes ultra-rapides de type Ionity ou Tesla Supercharger.
+La distribution est très concentrée autour de **22 kW**, valeur standard
+pour les bornes AC en parking. On observe également des pics à 7 kW
+(résidentiel/bureau) et 50 kW+ (recharge rapide sur autoroute ou station
+dédiée).
 
 ```{r fig.width=8, fig.height=5}
 paliers_bas  <- paliers[paliers <= 150]   # pour le premier hist
@@ -212,7 +254,11 @@ text(
 
 ### Nombre de points de charge (PDC) par station
 
-Le nombre de PDC par station varie de 1 à plusieurs dizaines. La majorité des stations possèdent **2 PDC**, ce qui correspond aux installations standard en parking public ou voirie. Les stations avec un grand nombre de PDC (\> 20) sont généralement des aires autoroutières ou des hubs de recharge rapide.
+Le nombre de PDC par station varie de 1 à plusieurs dizaines. La
+majorité des stations possèdent **2 PDC**, ce qui correspond aux
+installations standard en parking public ou voirie. Les stations avec un
+grand nombre de PDC (\> 20) sont généralement des aires autoroutières ou
+des hubs de recharge rapide.
 
 ```{r fig.width=8, fig.height=5}
 barplot(table(donnees$nbre_pdc[donnees$nbre_pdc <= 20]),
@@ -223,9 +269,10 @@ barplot(table(donnees$nbre_pdc[donnees$nbre_pdc <= 20]),
 
 ### Type d'implantation
 
-Le type d'implantation indique le contexte physique dans lequel la borne est installée. La **voirie** représente la catégorie la plus fréquente, suivie des **parkings privés à usage public** (centres commerciaux, hôtels) et des **parkings publics**.
-
-Les dernières catégories (parking privé réservé à la clientèle) restent marginales en nombre mais sont importantes pour certains opérateurs spécialisés (LIDL, E.Leclerc).
+Le type d'implantation indique le contexte physique dans lequel la borne
+est installée. La **voirie** représente la catégorie la plus fréquente,
+suivie des **parkings privés à usage public** (centres commerciaux,
+hôtels) et des **parkings publics**.
 
 ```{r fig.width=9, fig.height=6}
 par(mar = c(12, 5, 4, 2))
@@ -237,7 +284,10 @@ barplot(sort(table(donnees$implantation_station), decreasing = TRUE),
 
 ### Condition d'accès
 
-La quasi-totalité des bornes sont en **accès libre** — aucune restriction physique ou d'abonnement pour y accéder. Les bornes en accès réservé sont généralement liées à des flottes d'entreprise ou des parkings privés.
+La quasi-totalité des bornes sont en **accès libre** — aucune
+restriction physique ou d'abonnement pour y accéder. Les bornes en accès
+réservé sont généralement liées à des flottes d'entreprise ou des
+parkings privés.
 
 ```{r fig.width=7, fig.height=5}
 par(mar = c(6, 5, 4, 2))
@@ -249,7 +299,10 @@ barplot(sort(table(donnees$condition_acces), decreasing = TRUE),
 
 ### Gratuité
 
-La grande majorité des bornes sont **payantes**. Les bornes gratuites représentent une faible part, souvent associées à des collectivités locales ou des enseignes commerciales proposant la recharge comme service complémentaire.
+La grande majorité des bornes sont **payantes**. Les bornes gratuites
+représentent une faible part, souvent associées à des collectivités
+locales ou des enseignes commerciales proposant la recharge comme
+service complémentaire.
 
 ```{r fig.width=6, fig.height=5}
 barplot(table(donnees$gratuit),
@@ -269,7 +322,13 @@ prises <- c(
 )
 ```
 
-Le **Type 2** est le connecteur universel des bornes AC en Europe — il est présent sur la quasi-totalité des bornes. Le **Combo CCS** (courant continu) est corrélé aux puissances ≥ 50 kW et représente les bornes de recharge rapide. Le **CHAdeMO** est un standard japonais en déclin, présent sur les anciennes Nissan Leaf et Mitsubishi. La prise **EF** (domestique) est encore présente sur certaines bornes de faible puissance. 
+Le **Type 2** est le connecteur universel des bornes AC en Europe — il
+est présent sur la quasi-totalité des bornes. Le **Combo CCS** (courant
+continu) est corrélé aux puissances ≥ 50 kW et représente les bornes de
+recharge rapide. Le **CHAdeMO** est un standard japonais en déclin,
+présent sur les anciennes Nissan Leaf et Mitsubishi. La prise **EF**
+(domestique) est encore présente sur certaines bornes de faible
+puissance.
 
 ```{r fig.width=7, fig.height=5}
 #force la conversion TRUE/FALSE pour les variables de type prise
@@ -290,13 +349,18 @@ barplot(donnees_prises, main="Répartition des types de prises", xlab="Type de p
 
 ### Horaires
 
-La grande majorité des bornes sont accessibles **24h/24 et 7j/7** (`24/7`), ce qui reflète leur vocation de service public. Les exceptions concernent les bornes en parking d'entreprise ou de surface avec des plages horaires définies. \## Nettoyage des données
+La grande majorité des bornes sont accessibles **24h/24 et 7j/7**
+(`24/7`), ce qui reflète leur vocation de service public. Les exceptions
+concernent les bornes en parking d'entreprise ou de surface avec des
+plages horaires définies. \## Nettoyage des données
 
 # Fonctionnalité 2
 
 ## Représentation Graphique
 
-Évolution du déploiement : Ce graphique retrace le rythme d'installation des bornes mois par mois pour visualiser les périodes d'accélération du réseau.
+Évolution du déploiement : Ce graphique retrace le rythme d'installation
+des bornes mois par mois pour visualiser les périodes d'accélération du
+réseau.
 
 ```{r points}
 #irve <- read.csv("IRVE.csv", header = TRUE)
@@ -321,7 +385,9 @@ plot(df_evolution$Annee,
      ylab = "Nombre de stations")
 ```
 
-Analyse des enseignes : Ce script identifie les 15 enseignes les plus présentes dans la base de données et les affiche sous forme de graphique en secteurs pour visualiser leur répartition.
+Analyse des enseignes : Ce script identifie les 15 enseignes les plus
+présentes dans la base de données et les affiche sous forme de graphique
+en secteurs pour visualiser leur répartition.
 
 ```{r camembert}
 library(dplyr)
@@ -342,7 +408,9 @@ ggplot(top_df, aes(x = "", y = Freq, fill = Var1)) +
 
 ## Histogramme
 
-Analyse des types de prises : Ce script convertit les variables binaires en valeurs logiques, comptabilise le nombre total de stations équipées pour chaque standard et génère un diagramme en barres comparatif.
+Analyse des types de prises : Ce script convertit les variables binaires
+en valeurs logiques, comptabilise le nombre total de stations équipées
+pour chaque standard et génère un diagramme en barres comparatif.
 
 ```{r histogramme}
 
@@ -366,7 +434,8 @@ donnees_prises <- tapply( #tapply() regroupe les lignes qui ont le même valeur 
 
 barplot(donnees_prises, main="prise combo CCS en fonction de sa puissance", xlab="puissance nominale", ylab="Nombre de prises", col="yellow")
 ```
-``` {r densite}
+
+```{r densite}
 library(ggplot2)
 library(dplyr)
 
@@ -415,11 +484,10 @@ ggplot(donnees_pwr, aes(x = date_mise_en_service, y = puissance_tot, color = typ
     color = "Type de prise"
   )
 ```
+
 # Fonctionnalité 3
 
 ## Carte de chaleur
-
-Analyse cartographique : Une carte de chaleur (heatmap) permet de visualiser la densité spatiale des stations de recharge, identifiant ainsi instantanément les zones à forte concentration et les secteurs moins équipés.
 
 ```{r carte_chaleur}
 library(mapsf) #sert à afficher la carte
@@ -442,8 +510,11 @@ for (d in dep$INSEE_DEP){
 dep$charge_total <- charges #ajout du nouveau paramètre à la carte
 
 mf_map(x = dep, var = "charge_total", type = "choro") # affiche la Carte choroplèthe en fonction du nombre de bornes par département
-mf_title("densité des bornes")
-
+mf_title("densité des bornes par département")
+cat("Analyse cartographique : La première carte de chaleur (heatmap) permet
+de visualiser la densité spatiale des stations de recharge, identifiant
+ainsi instantanément les zones à forte concentration et les secteurs
+moins équipés.")
 
 
 
@@ -472,20 +543,24 @@ dep$ecart <- ecart
 
 # Carte 2 : variable majoritaire
 mf_map(x = dep, var = "variable_maj", type = "typo")
-mf_title("Variable majoritaire par département")
+mf_title("type de prise majoritaire par département")
 
 # Carte 3 : écart
 mf_map(x = dep, var = "ecart", type = "choro")
-mf_title("Écart entre 1ère et 2ème type de prise")
+mf_title("Écart la prise type 2 et combo css")
 
 
 ```
 
 ## Regroupement et coloration
 
-Regroupement (Clustering) : Cette méthode permet de segmenter les stations de recharge en groupes homogènes selon leurs caractéristiques communes, facilitant ainsi l'analyse des typologies d'infrastructures.
+Regroupement (Clustering) : Cette méthode permet de segmenter les
+stations de recharge en groupes homogènes selon leurs caractéristiques
+communes, facilitant ainsi l'analyse des typologies d'infrastructures.
 
-Coloration (Mapping) : La coloration permet d'associer visuellement des indicateurs quantitatifs ou qualitatifs à chaque zone géographique, rendant les disparités territoriales immédiatement lisibles.
+Coloration (Mapping) : La coloration permet d'associer visuellement des
+indicateurs quantitatifs ou qualitatifs à chaque zone géographique,
+rendant les disparités territoriales immédiatement lisibles.
 
 ```{r regroupement_coloration}
 # carte intéractive 
@@ -519,7 +594,15 @@ map;
 # Fonctionnalité 4
 
 ## Tableau croisé
-La fonctionnalité 4 a pour objectif d'analyser les liens entre les variables du jeu de données. On distingue deux types d'analyses : les corrélations quantitatives entre variables numériques via le coefficient de Pearson, et les corrélations qualitatives entre variables catégorielles via le test du Chi². L'objectif est de déterminer quelles caractéristiques des bornes sont liées entre elles, et dans quelle mesure.
+
+La fonctionnalité 4 a pour objectif d'analyser les liens entre les
+variables du jeu de données. On distingue deux types d'analyses : les
+corrélations quantitatives entre variables numériques via le coefficient
+de Pearson, et les corrélations qualitatives entre variables
+catégorielles via le test du Chi². L'objectif est de déterminer quelles
+caractéristiques des bornes sont liées entre elles, et dans quelle
+mesure.
+
 ```{r Tableau}
 library(dplyr)
 library(ggplot2)
@@ -557,7 +640,10 @@ donnees$implantation_station <- case_when(
 
 ## Graphique
 
-On calcule le coefficient de Pearson entre les variables numériques — puissance, nombre de PDC, latitude et longitude. Tous les r sont proches de zéro, ce qui confirme l'absence de relation linéaire entre la localisation géographique et les caractéristiques techniques des bornes.
+On calcule le coefficient de Pearson entre les variables numériques —
+puissance, nombre de PDC, latitude et longitude. Tous les r sont proches
+de zéro, ce qui confirme l'absence de relation linéaire entre la
+localisation géographique et les caractéristiques techniques des bornes.
 
 ```{r Graphique}
 #setwd("/Users/voldrogo/Documents/Big-Data-Projet")
@@ -595,15 +681,25 @@ nuage_points(donnees, "consolidated_longitude", "nbre_pdc",
 
 
 ```
+
 ![F4_biv_pdc_puissance](output/F4_biv_pdc_puissance.png)
 ![F4_biv_pdc_puissance](output/F4_biv_lat_pdc.png)
 ![F4_biv_pdc_puissance](output/F4_biv_lat_puissance.png)
-![F4_biv_pdc_puissance](output/F4_biv_lon_pdc.png)
-Les coefficients de corrélation obtenus sont tous très proches de zéro (de -0,019 à 0,068). Cela indique l’absence de relation linéaire notable entre la localisation géographique, la puissance des bornes et le nombre de points de charge. Ces variables semblent donc évoluer de manière largement indépendante.
+![F4_biv_pdc_puissance](output/F4_biv_lon_pdc.png) Les coefficients de
+corrélation obtenus sont tous très proches de zéro (de -0,019 à 0,068).
+Cela indique l’absence de relation linéaire notable entre la
+localisation géographique, la puissance des bornes et le nombre de
+points de charge. Ces variables semblent donc évoluer de manière
+largement indépendante.
 
 ## CORRÉLATIONS QUALITATIVES — Chi2 + Mosaicplot
 
-Pour les variables qualitatives, on utilise le test du Chi² qui mesure si deux variables sont indépendantes ou non. Une p-value inférieure à 0.05 indique une liaison significative. Ici tous nos tests sont significatifs — notamment l'implantation avec la prise Combo CCS, ce qui confirme que les stations dédiées à la recharge rapide concentrent effectivement les bornes DC haute puissance.
+Pour les variables qualitatives, on utilise le test du Chi² qui mesure
+si deux variables sont indépendantes ou non. Une p-value inférieure à
+0.05 indique une liaison significative. Ici tous nos tests sont
+significatifs — notamment l'implantation avec la prise Combo CCS, ce qui
+confirme que les stations dédiées à la recharge rapide concentrent
+effectivement les bornes DC haute puissance.
 
 ```{r correlationsquantlitative}
 #setwd("/Users/voldrogo/Documents/Big-Data-Projet")
@@ -670,8 +766,13 @@ test_chi2_mosaic(donnees, "puissance_nominale", "implantation_station",
 
 ![F4_biv_pdc_puissance](output/F4_chi2_implantation_ccs.png)
 ![F4_biv_pdc_puissance](output/F4_chi2_acces_gratuit.png)
-![F4_biv_pdc_puissance](output/F4_chi2_operateur_acces.png)
-Les tests révèlent des associations significatives entre toutes les variables étudiées. Les relations les plus marquées concernent l’implantation, qui est fortement liée à la présence d’une prise Combo CCS et aux conditions d’accès. L’opérateur influence également les modalités d’accès, tandis que le lien entre condition d’accès et gratuité est significatif mais semble plus faible.
+![F4_biv_pdc_puissance](output/F4_chi2_operateur_acces.png) Les tests
+révèlent des associations significatives entre toutes les variables
+étudiées. Les relations les plus marquées concernent l’implantation, qui
+est fortement liée à la présence d’une prise Combo CCS et aux conditions
+d’accès. L’opérateur influence également les modalités d’accès, tandis
+que le lien entre condition d’accès et gratuité est significatif mais
+semble plus faible.
 
 # Fonctionnalité 5
 

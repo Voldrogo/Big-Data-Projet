@@ -1,5 +1,0 @@
-"0","# Suppression des doublons exacts"
-"0","library(dplyr)"
-"0","irve <- read.csv(""IRVE.csv"", header = TRUE)"
-"2","Erreur dans file(file, ""rt"") : impossible d'ouvrir la connexion
-"
