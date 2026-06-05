@@ -366,7 +366,55 @@ donnees_prises <- tapply( #tapply() regroupe les lignes qui ont le même valeur 
 
 barplot(donnees_prises, main="prise combo CCS en fonction de sa puissance", xlab="puissance nominale", ylab="Nombre de prises", col="yellow")
 ```
+``` {r densite}
+library(ggplot2)
+library(dplyr)
 
+donnees$type <- NA
+donnees$type[donnees$prise_type_ef == "True"] <- "EF"
+donnees$type[donnees$prise_type_2 == "True"] <- "Type 2"
+donnees$type[donnees$prise_type_combo_ccs == "True"] <- "Combo CCS"
+donnees$type[donnees$prise_type_chademo == "True"] <- "CHAdeMO"
+
+donnees_all <- subset(donnees, !is.na(type) & !is.na(date_mise_en_service))
+donnees_all$date_mise_en_service <- as.Date(donnees_all$date_mise_en_service)
+donnees_all$puissance_nominale <- as.numeric(donnees_all$puissance_nominale)
+donnees_all <- donnees_all[donnees_all$date_mise_en_service >= as.Date("2000-01-01"), ]
+
+# 1. Nombre cumulé de prises par type au fil du temps
+donnees_count <- donnees_all %>%
+  group_by(date_mise_en_service, type) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  group_by(type) %>%
+  arrange(date_mise_en_service) %>%
+  mutate(n_cumul = cumsum(n))
+
+ggplot(donnees_count, aes(x = date_mise_en_service, y = n_cumul, color = type)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Nombre cumulé de prises par type au fil du temps",
+    x = "Date de mise en service",
+    y = "Nombre de prises (cumulé)",
+    color = "Type de prise"
+  )
+
+# 2. Puissance totale par type au fil du temps
+donnees_pwr <- donnees_all %>%
+  filter(!is.na(puissance_nominale)) %>%
+  group_by(date_mise_en_service, type) %>%
+  summarise(puissance_tot = sum(puissance_nominale), .groups = "drop")
+
+ggplot(donnees_pwr, aes(x = date_mise_en_service, y = puissance_tot, color = type)) +
+  geom_line() +
+  theme_minimal() +
+  labs(
+    title = "Puissance totale par type au fil du temps",
+    x = "Date de mise en service",
+    y = "Puissance totale (kW)",
+    color = "Type de prise"
+  )
+```
 # Fonctionnalité 3
 
 ## Carte de chaleur
