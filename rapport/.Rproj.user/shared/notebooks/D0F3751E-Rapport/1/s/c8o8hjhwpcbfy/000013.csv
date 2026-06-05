@@ -1,7 +1,8 @@
 "0",""
-"0",""
-"0",""
-"0",""
+"0","cat(""Analyse cartographique : cette carte de chaleur (heatmap) permet de visualiser la densité spatiale des stations de recharge, identifiant ainsi instantanément les zones à forte concentration et les secteurs moins équipés."
+"0",""")"
+"1","Analyse cartographique : cette carte de chaleur (heatmap) permet de visualiser la densité spatiale des stations de recharge, identifiant ainsi instantanément les zones à forte concentration et les secteurs moins équipés.
+"
 "0","variables <- c(""prise_type_ef"", ""prise_type_combo_ccs"", ""prise_type_2"", ""prise_type_chademo"", ""prise_type_autre"")"
 "0",""
 "0","maj_var <- c()     "
@@ -20,7 +21,10 @@
 "0","  ecart <- c(ecart, counts_sorted[1] - counts_sorted[2]) # Calcule l'écart entre la 1ère et la 2ème"
 "0",""
 "0","}"
-"0",""
+"2","Registered S3 method overwritten by 'rmarkdown':
+  method         from
+  print.paged_df     
+"
 "0","dep$variable_maj <- maj_var"
 "0","dep$ecart <- ecart"
 "0",""

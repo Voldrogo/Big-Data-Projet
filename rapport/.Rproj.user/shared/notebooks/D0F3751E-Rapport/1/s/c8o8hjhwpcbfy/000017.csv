@@ -1,3 +1,4 @@
-"0",""
+"0","cat(""Analyse cartographique : cette carte typographique permet de visualiser quel type de prise est présent en majorité dans un département. On observe que selon le département le type de prise présent en majorité est soit la prise de type 2 soit la prise de type combo ccs"")"
+"1","Analyse cartographique : cette carte typographique permet de visualiser quel type de prise est présent en majorité dans un département. On observe que selon le département le type de prise présent en majorité est soit la prise de type 2 soit la prise de type combo ccs"
 "0","# Carte 3 : écart"
 "0","mf_map(x = dep, var = ""ecart"", type = ""choro"")"

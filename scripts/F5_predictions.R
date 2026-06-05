@@ -120,8 +120,7 @@ for (i in 1:5) {
 
 cat("Accuracy moyenne :", mean(resultats), "\n")
 
-
-# --- 1. Odds Ratios ---
+#Odds Ratios
 or_df <- tidy(modele, exponentiate = TRUE, conf.int = TRUE)
 
 ggplot(or_df %>% filter(term != "(Intercept)"),
@@ -134,9 +133,11 @@ ggplot(or_df %>% filter(term != "(Intercept)"),
   scale_x_log10() +
   labs(x = "Odds Ratio (log)", y = NULL, title = "Odds Ratios par catégorie vs 'bas'") +
   theme_minimal() + theme(legend.position = "none")
+cat("On observe que la présence de stationnement à deux roues, de prise de type EF ou de type 2, l'endroit où se trouve la borne et son nombre de pdc ne sont pas des paramètre très importants pour déterminer la tarification de la borne. ")
 
 
-# --- 3. Matrice de confusion ---
+
+#Matrice de confusion 
 preds <- predict(modele, newdata = filtre_tarif_final, type = "class")
 cm    <- confusionMatrix(preds, filtre_tarif_final$categorie_tarif)
 
@@ -147,3 +148,4 @@ as.data.frame(cm$table) %>%
   scale_fill_gradient(low = "white", high = "#3B8BD4") +
   labs(title = "Matrice de confusion", x = "Prédit", y = "Observé") +
   theme_minimal()
+cat("Le nombre d'erreur entre la tarification prédite et la véritable tarification est relativement homogène dans toute la matrice. On remarque cependant que le modèle prédit très rarement une tarification élevé alors qu'elle est en réalité basse. L'inverse n'est pas vrai. ")
