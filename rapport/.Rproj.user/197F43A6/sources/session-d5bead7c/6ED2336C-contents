@@ -3,8 +3,6 @@
 irve <- read.csv("../../IRVE2.csv",header = TRUE)
 library(rgl)
 modele1<-library(rgl)
-modele1<-lm(puissance_nominale ~ toupper(gratuit)+toupper(paiement_acte)+toupper(reservation), data=irve)
-summary(modele1)
 
 modele1 <- lm(puissance_nominale ~  nbre_pdc +
                 prise_type_ef + prise_type_2 + prise_type_combo_ccs +
@@ -23,9 +21,6 @@ table(irve$tarification)
 
 ###################################################################
 #Regression logistique
-predict.glm(model,data.frame(X1=1.25),type="response")
-
-
 
 irve <- read.csv("../../IRVE2.csv",header = TRUE)
 
@@ -81,7 +76,6 @@ library(tidyr)    # pour pivot_longer
 library(broom)
 library(caret)
 
-# --- Réentraîner le modèle (adapter les variables si besoin) ---
 cols_utilisees <- c("categorie_tarif","puissance_nominale", "nbre_pdc",
                     "prise_type_ef", "prise_type_2", "prise_type_combo_ccs",
                     "prise_type_chademo", "prise_type_autre",
@@ -89,9 +83,6 @@ cols_utilisees <- c("categorie_tarif","puissance_nominale", "nbre_pdc",
                     "reservation", "station_deux_roues",
                     "consolidated_longitude", "consolidated_latitude")
 
-#cols_utilisees <- c("categorie_tarif", "puissance_nominale", "implantation_station",
- #         "condition_acces", "prise_type_2", "prise_type_combo_ccs",
-  #        "prise_type_chademo", "paiement_cb", "reservation", "nbre_pdc")
 
 filtre_tarif_final <- na.omit(filtre_tarif_final[, cols_utilisees]) # supprime toutes les lignes avec un NA
 cat(sprintf("Lignes après suppression des NA : %d\n", nrow(filtre_tarif_final)))
@@ -104,14 +95,14 @@ filtre_tarif_final[, cols_utilisees] <- lapply(filtre_tarif_final[, cols_utilise
   else col
 })
 
-fold_size <- floor(nrow(filtre_tarif_final) / 5)
+fold_size <- floor(nrow(filtre_tarif_final) / 5) # floor arrondi le nombre entier inférieur
 resultats <- c()
 
 for (i in 1:5) {
-  idx_test <- ((i-1)*fold_size + 1):(i*fold_size)
+  idx_test <- ((i-1)*fold_size + 1):(i*fold_size) #crée une séquence qui se décale au fil des boucles 
   
-  # restreindre aux colonnes utiles uniquement
-  train <- filtre_tarif_final[-idx_test, cols_utilisees]
+  train <- filtre_tarif_final[-idx_test, cols_utilisees]  # cols_utilisees sert à utiliser uniquement les colonnes filtrés et pas les autres
+
   test  <- filtre_tarif_final[idx_test, cols_utilisees]
   
   modele <- multinom(categorie_tarif ~ nbre_pdc +
@@ -144,18 +135,23 @@ ggplot(or_df %>% filter(term != "(Intercept)"),
   labs(x = "Odds Ratio (log)", y = NULL, title = "Odds Ratios par catégorie vs 'bas'") +
   theme_minimal() + theme(legend.position = "none")
 
-# --- 2. Probabilités prédites selon la puissance ---# --- 2. Probabilités prédites selon la puissance ---
+# --- 2. Probabilités prédites selon la puissance ---
 grid_pred <- data.frame(
-  puissance_nominale   = seq(min(filtre_tarif_final$puissance_nominale),
-                             max(filtre_tarif_final$puissance_nominale), length.out = 100),
-  implantation_station = filtre_tarif_final$implantation_station[1],
-  condition_acces      = filtre_tarif_final$condition_acces[1],
-  prise_type_2         = filtre_tarif_final$prise_type_2[1],
-  prise_type_combo_ccs = filtre_tarif_final$prise_type_combo_ccs[1],
-  prise_type_chademo   = filtre_tarif_final$prise_type_chademo[1],
-  paiement_cb          = filtre_tarif_final$paiement_cb[1],
-  reservation          = filtre_tarif_final$reservation[1],
-  nbre_pdc             = median(filtre_tarif_final$nbre_pdc)
+  puissance_nominale        = seq(min(filtre_tarif_final$puissance_nominale),
+                                  max(filtre_tarif_final$puissance_nominale), length.out = 100),
+  nbre_pdc                  = median(filtre_tarif_final$nbre_pdc),
+  prise_type_ef             = filtre_tarif_final$prise_type_ef[1],
+  prise_type_2              = filtre_tarif_final$prise_type_2[1],
+  prise_type_combo_ccs      = filtre_tarif_final$prise_type_combo_ccs[1],
+  prise_type_chademo        = filtre_tarif_final$prise_type_chademo[1],
+  prise_type_autre          = filtre_tarif_final$prise_type_autre[1],
+  paiement_acte             = filtre_tarif_final$paiement_acte[1],
+  paiement_cb               = filtre_tarif_final$paiement_cb[1],
+  paiement_autre            = filtre_tarif_final$paiement_autre[1],
+  reservation               = filtre_tarif_final$reservation[1],
+  station_deux_roues        = filtre_tarif_final$station_deux_roues[1],
+  consolidated_longitude    = median(filtre_tarif_final$consolidated_longitude),
+  consolidated_latitude     = median(filtre_tarif_final$consolidated_latitude)
 )
 
 probs <- predict(modele, newdata = grid_pred, type = "probs") %>%
@@ -170,6 +166,8 @@ ggplot(probs, aes(x = puissance, y = prob, color = categorie, fill = categorie))
   labs(x = "Puissance nominale (kW)", y = "Probabilité prédite",
        title = "Probabilités prédites selon la puissance", color = NULL, fill = NULL) +
   theme_minimal()
+
+
 # --- 3. Matrice de confusion ---
 preds <- predict(modele, newdata = filtre_tarif_final, type = "class")
 cm    <- confusionMatrix(preds, filtre_tarif_final$categorie_tarif)
